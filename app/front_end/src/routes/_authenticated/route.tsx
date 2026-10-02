@@ -30,9 +30,7 @@ function AppShell() {
     <div className="flex min-h-screen">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex">
         <div className="border-b border-sidebar-border px-5 py-5">
-          <div className="text-lg font-semibold tracking-tight text-sidebar-accent-foreground">Calibrate</div>
-          <div className="text-xs text-sidebar-foreground/70">Personalized Technical Interviews</div>
-          <BrandLogo to="/dashboard" inverted imgClassName="h-9" />
+          <BrandLogo to="/" inverted imgClassName="h-9" />
         </div>
         <nav className="flex-1 space-y-1 p-3">
           {NAV.map(({ to, label, icon: Icon }) => {
@@ -56,7 +54,7 @@ function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-card px-6">
           <div className="flex items-center gap-3 text-sm">
-            <BrandLogo to="/dashboard" className="md:hidden" imgClassName="h-7" />
+            <BrandLogo to="/" className="md:hidden" imgClassName="h-7" />
             <span className="text-muted-foreground">Company</span>
             <span className="font-medium">{user?.company_name ?? (loading ? "..." : "")}</span>
           </div>

@@ -14,9 +14,9 @@ export const Route = createFileRoute("/")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Calibrate — Personalized Technical Interviews" },
+      { title: "Fit2Hire — Personalized Technical Interviews" },
       { name: "description", content: "Turn a job posting, the hiring manager's priorities, and a resume into a personalized interview, then see how the candidate worked through it." },
-      { property: "og:title", content: "Calibrate — Personalized Technical Interviews" },
+      { property: "og:title", content: "Fit2Hire — Personalized Technical Interviews" },
       { property: "og:description", content: "Personalized interviews and evidence-based candidate analysis for recruiters and hiring managers." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -38,19 +38,18 @@ function Home() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-          <span className="text-lg font-semibold tracking-tight">Calibrate</span>
-          {user ? (
-            <div className="flex items-center gap-3 text-sm">
-              <span className="text-muted-foreground">{user.name}</span>
-              <Button variant="outline" onClick={signOut}>Sign out</Button>
-            </div>
-          ) : !loading && <Button asChild variant="outline"><Link to="/auth">Sign in</Link></Button>}
         <div className="relative mx-auto flex h-16 max-w-6xl items-center justify-center px-6">
           <BrandLogo to="/" imgClassName="h-8" />
-          <Button asChild variant="outline" className="absolute right-6">
-            <Link to="/auth">Sign in</Link>
-          </Button>
+          <div className="absolute right-6">
+            {user ? (
+              <div className="flex items-center gap-3 text-sm">
+                <span className="hidden text-muted-foreground sm:inline">{user.name}</span>
+                <Button variant="outline" onClick={signOut}>Sign out</Button>
+              </div>
+            ) : !loading ? (
+              <Button asChild variant="outline"><Link to="/auth">Sign in</Link></Button>
+            ) : null}
+          </div>
         </div>
       </header>
       {loading ? <div className="mx-auto max-w-6xl px-6 py-20"><LoadingRows /></div>
@@ -62,20 +61,21 @@ function Home() {
 // Before signing in: what the product does, and the way in.
 function PublicHome() {
   return (
-    <section className="mx-auto max-w-6xl px-6 py-20">
+    <section className="mx-auto max-w-6xl px-6 py-20 text-center">
+      <BrandLogo variant="lockup" imgClassName="mx-auto h-28 md:h-36" className="mb-8 justify-center" />
       <p className="text-sm font-medium uppercase tracking-wider text-primary">For recruiters and hiring managers</p>
-      <h1 className="mt-3 max-w-3xl text-4xl font-semibold leading-tight tracking-tight md:text-5xl">
+      <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-semibold leading-tight tracking-tight md:text-5xl">
         Interviews built around the real job and the real candidate.
       </h1>
-      <p className="mt-5 max-w-2xl text-lg text-muted-foreground">
-        Give Calibrate the job posting, what the hiring manager cares about, and a resume. It writes a personalized
-        interview, then analyzes how the candidate worked through it.
+      <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
+        Give us the job posting, what the hiring manager cares about, and a resume. We write a personalized
+        interview, then analyze how the candidate worked through it.
       </p>
-      <div className="mt-8 flex flex-wrap gap-3">
+      <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Button asChild size="lg"><Link to="/auth">Get started</Link></Button>
         <DemoSignInButton size="lg" />
       </div>
-      <div className="mt-16 grid gap-px overflow-hidden rounded-lg border bg-border md:grid-cols-4">
+      <div className="mt-16 grid gap-px overflow-hidden rounded-lg border bg-border text-left md:grid-cols-4">
         {STEPS.map(([title, text], i) => (
           <div key={title} className="bg-card p-6">
             <div className="font-mono text-xs text-muted-foreground">0{i + 1}</div>
@@ -136,29 +136,5 @@ function SignedInHome() {
           </ul>
         )}
     </section>
-      <section className="mx-auto max-w-6xl px-6 py-20 text-center">
-        <BrandLogo variant="lockup" imgClassName="mx-auto h-28 md:h-36" className="mb-8 justify-center" />
-        <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-semibold leading-tight tracking-tight md:text-5xl">
-          Turn real engineering requirements into targeted assessments.
-        </h1>
-        <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
-          Build coding assessment specifications grounded in your company's actual work and the candidate's relevant
-          experience, then show recruiters exactly how well each candidate demonstrated those requirements.
-        </p>
-        <div className="mt-8 flex justify-center gap-3">
-          <Button asChild size="lg"><Link to="/auth">Get started</Link></Button>
-          <Button asChild size="lg" variant="outline"><Link to="/dashboard">Go to dashboard</Link></Button>
-        </div>
-        <div className="mt-16 grid gap-px overflow-hidden rounded-lg border bg-border text-left md:grid-cols-3">
-          {STEPS.map(([t, d], i) => (
-            <div key={t} className="bg-card p-6">
-              <div className="font-mono text-xs text-muted-foreground">0{i + 1}</div>
-              <div className="mt-2 font-semibold">{t}</div>
-              <p className="mt-1 text-sm text-muted-foreground">{d}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
   );
 }

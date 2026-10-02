@@ -16,9 +16,9 @@ import { BrandLogo } from "@/components/brand-logo";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign in — Calibrate" },
-      { name: "description", content: "Sign in to Calibrate to set up interviews and review candidate analysis." },
-      { property: "og:title", content: "Sign in — Calibrate" },
+      { title: "Sign in — Fit2Hire" },
+      { name: "description", content: "Sign in to Fit2Hire to set up interviews and review candidate analysis." },
+      { property: "og:title", content: "Sign in — Fit2Hire" },
       { property: "og:description", content: "Access your hiring team's interviews and candidate analysis." },
     ],
   }),
