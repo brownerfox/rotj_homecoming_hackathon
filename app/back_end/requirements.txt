@@ -1,0 +1,9 @@
+# Web framework; [standard] adds uvicorn (server) and the `fastapi dev` CLI
+fastapi[standard]==0.142.2
+# ORM / database toolkit
+sqlalchemy==2.1.2
+# Reads settings from environment variables and .env
+pydantic-settings==2.15.0
+# Tests (Starlette's TestClient now prefers httpx2 over httpx)
+pytest==9.1.1
+httpx2==2.13.1

@@ -80,8 +80,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Calibrate — Technical Assessment Platform" },
-      { name: "description", content: "Turn real engineering requirements into targeted coding assessments and clear candidate evaluations." },
+      { title: "Calibrate — Personalized Technical Interviews" },
+      { name: "description", content: "Personalized interviews and evidence-based candidate analysis for recruiters and hiring managers." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

@@ -12,15 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
-import { Route as AuthenticatedCandidatesRouteImport } from './routes/_authenticated/candidates'
-import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
-import { Route as AuthenticatedAssessmentsIndexRouteImport } from './routes/_authenticated/assessments.index'
-import { Route as AuthenticatedAssessmentsNewRouteImport } from './routes/_authenticated/assessments.new'
-import { Route as AuthenticatedEvaluationsIndexRouteImport } from './routes/_authenticated/evaluations.index'
-import { Route as AuthenticatedEvaluationsIdRouteImport } from './routes/_authenticated/evaluations.$id'
-import { Route as AuthenticatedSubmissionsNewRouteImport } from './routes/_authenticated/submissions.new'
-import { Route as AuthenticatedAssessmentsIdIndexRouteImport } from './routes/_authenticated/assessments.$id.index'
-import { Route as AuthenticatedAssessmentsIdSpecRouteImport } from './routes/_authenticated/assessments.$id.spec'
+import { Route as AuthenticatedJobsNewRouteImport } from './routes/_authenticated/jobs.new'
+import { Route as AuthenticatedCandidatesCandidateIdAnalysisRouteImport } from './routes/_authenticated/candidates.$candidateId.analysis'
+import { Route as AuthenticatedCandidatesCandidateIdInterviewRouteImport } from './routes/_authenticated/candidates.$candidateId.interview'
+import { Route as AuthenticatedJobsJobIdCandidatesNewRouteImport } from './routes/_authenticated/jobs.$jobId.candidates.new'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -36,141 +31,82 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedCandidatesRoute = AuthenticatedCandidatesRouteImport.update({
-  id: '/candidates',
-  path: '/candidates',
+const AuthenticatedJobsNewRoute = AuthenticatedJobsNewRouteImport.update({
+  id: '/jobs/new',
+  path: '/jobs/new',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedAssessmentsIndexRoute =
-  AuthenticatedAssessmentsIndexRouteImport.update({
-    id: '/assessments/',
-    path: '/assessments/',
+const AuthenticatedCandidatesCandidateIdAnalysisRoute =
+  AuthenticatedCandidatesCandidateIdAnalysisRouteImport.update({
+    id: '/candidates/$candidateId/analysis',
+    path: '/candidates/$candidateId/analysis',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedAssessmentsNewRoute =
-  AuthenticatedAssessmentsNewRouteImport.update({
-    id: '/assessments/new',
-    path: '/assessments/new',
+const AuthenticatedCandidatesCandidateIdInterviewRoute =
+  AuthenticatedCandidatesCandidateIdInterviewRouteImport.update({
+    id: '/candidates/$candidateId/interview',
+    path: '/candidates/$candidateId/interview',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedEvaluationsIndexRoute =
-  AuthenticatedEvaluationsIndexRouteImport.update({
-    id: '/evaluations/',
-    path: '/evaluations/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedEvaluationsIdRoute =
-  AuthenticatedEvaluationsIdRouteImport.update({
-    id: '/evaluations/$id',
-    path: '/evaluations/$id',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedSubmissionsNewRoute =
-  AuthenticatedSubmissionsNewRouteImport.update({
-    id: '/submissions/new',
-    path: '/submissions/new',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedAssessmentsIdIndexRoute =
-  AuthenticatedAssessmentsIdIndexRouteImport.update({
-    id: '/assessments/$id/',
-    path: '/assessments/$id/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedAssessmentsIdSpecRoute =
-  AuthenticatedAssessmentsIdSpecRouteImport.update({
-    id: '/assessments/$id/spec',
-    path: '/assessments/$id/spec',
+const AuthenticatedJobsJobIdCandidatesNewRoute =
+  AuthenticatedJobsJobIdCandidatesNewRouteImport.update({
+    id: '/jobs/$jobId/candidates/new',
+    path: '/jobs/$jobId/candidates/new',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/candidates': typeof AuthenticatedCandidatesRoute
-  '/dashboard': typeof AuthenticatedDashboardRoute
-  '/assessments/new': typeof AuthenticatedAssessmentsNewRoute
-  '/evaluations/$id': typeof AuthenticatedEvaluationsIdRoute
-  '/submissions/new': typeof AuthenticatedSubmissionsNewRoute
-  '/assessments/': typeof AuthenticatedAssessmentsIndexRoute
-  '/evaluations/': typeof AuthenticatedEvaluationsIndexRoute
-  '/assessments/$id/spec': typeof AuthenticatedAssessmentsIdSpecRoute
-  '/assessments/$id/': typeof AuthenticatedAssessmentsIdIndexRoute
+  '/jobs/new': typeof AuthenticatedJobsNewRoute
+  '/candidates/$candidateId/analysis': typeof AuthenticatedCandidatesCandidateIdAnalysisRoute
+  '/candidates/$candidateId/interview': typeof AuthenticatedCandidatesCandidateIdInterviewRoute
+  '/jobs/$jobId/candidates/new': typeof AuthenticatedJobsJobIdCandidatesNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/candidates': typeof AuthenticatedCandidatesRoute
-  '/dashboard': typeof AuthenticatedDashboardRoute
-  '/assessments/new': typeof AuthenticatedAssessmentsNewRoute
-  '/evaluations/$id': typeof AuthenticatedEvaluationsIdRoute
-  '/submissions/new': typeof AuthenticatedSubmissionsNewRoute
-  '/assessments': typeof AuthenticatedAssessmentsIndexRoute
-  '/evaluations': typeof AuthenticatedEvaluationsIndexRoute
-  '/assessments/$id/spec': typeof AuthenticatedAssessmentsIdSpecRoute
-  '/assessments/$id': typeof AuthenticatedAssessmentsIdIndexRoute
+  '/jobs/new': typeof AuthenticatedJobsNewRoute
+  '/candidates/$candidateId/analysis': typeof AuthenticatedCandidatesCandidateIdAnalysisRoute
+  '/candidates/$candidateId/interview': typeof AuthenticatedCandidatesCandidateIdInterviewRoute
+  '/jobs/$jobId/candidates/new': typeof AuthenticatedJobsJobIdCandidatesNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
-  '/_authenticated/candidates': typeof AuthenticatedCandidatesRoute
-  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
-  '/_authenticated/assessments/new': typeof AuthenticatedAssessmentsNewRoute
-  '/_authenticated/evaluations/$id': typeof AuthenticatedEvaluationsIdRoute
-  '/_authenticated/submissions/new': typeof AuthenticatedSubmissionsNewRoute
-  '/_authenticated/assessments/': typeof AuthenticatedAssessmentsIndexRoute
-  '/_authenticated/evaluations/': typeof AuthenticatedEvaluationsIndexRoute
-  '/_authenticated/assessments/$id/spec': typeof AuthenticatedAssessmentsIdSpecRoute
-  '/_authenticated/assessments/$id/': typeof AuthenticatedAssessmentsIdIndexRoute
+  '/_authenticated/jobs/new': typeof AuthenticatedJobsNewRoute
+  '/_authenticated/candidates/$candidateId/analysis': typeof AuthenticatedCandidatesCandidateIdAnalysisRoute
+  '/_authenticated/candidates/$candidateId/interview': typeof AuthenticatedCandidatesCandidateIdInterviewRoute
+  '/_authenticated/jobs/$jobId/candidates/new': typeof AuthenticatedJobsJobIdCandidatesNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/auth'
-    | '/candidates'
-    | '/dashboard'
-    | '/assessments/new'
-    | '/evaluations/$id'
-    | '/submissions/new'
-    | '/assessments/'
-    | '/evaluations/'
-    | '/assessments/$id/spec'
-    | '/assessments/$id/'
+    | '/jobs/new'
+    | '/candidates/$candidateId/analysis'
+    | '/candidates/$candidateId/interview'
+    | '/jobs/$jobId/candidates/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
-    | '/candidates'
-    | '/dashboard'
-    | '/assessments/new'
-    | '/evaluations/$id'
-    | '/submissions/new'
-    | '/assessments'
-    | '/evaluations'
-    | '/assessments/$id/spec'
-    | '/assessments/$id'
+    | '/jobs/new'
+    | '/candidates/$candidateId/analysis'
+    | '/candidates/$candidateId/interview'
+    | '/jobs/$jobId/candidates/new'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
-    | '/_authenticated/candidates'
-    | '/_authenticated/dashboard'
-    | '/_authenticated/assessments/new'
-    | '/_authenticated/evaluations/$id'
-    | '/_authenticated/submissions/new'
-    | '/_authenticated/assessments/'
-    | '/_authenticated/evaluations/'
-    | '/_authenticated/assessments/$id/spec'
-    | '/_authenticated/assessments/$id/'
+    | '/_authenticated/jobs/new'
+    | '/_authenticated/candidates/$candidateId/analysis'
+    | '/_authenticated/candidates/$candidateId/interview'
+    | '/_authenticated/jobs/$jobId/candidates/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -202,94 +138,52 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/candidates': {
-      id: '/_authenticated/candidates'
-      path: '/candidates'
-      fullPath: '/candidates'
-      preLoaderRoute: typeof AuthenticatedCandidatesRouteImport
+    '/_authenticated/jobs/new': {
+      id: '/_authenticated/jobs/new'
+      path: '/jobs/new'
+      fullPath: '/jobs/new'
+      preLoaderRoute: typeof AuthenticatedJobsNewRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/dashboard': {
-      id: '/_authenticated/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+    '/_authenticated/candidates/$candidateId/analysis': {
+      id: '/_authenticated/candidates/$candidateId/analysis'
+      path: '/candidates/$candidateId/analysis'
+      fullPath: '/candidates/$candidateId/analysis'
+      preLoaderRoute: typeof AuthenticatedCandidatesCandidateIdAnalysisRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/assessments/': {
-      id: '/_authenticated/assessments/'
-      path: '/assessments'
-      fullPath: '/assessments/'
-      preLoaderRoute: typeof AuthenticatedAssessmentsIndexRouteImport
+    '/_authenticated/candidates/$candidateId/interview': {
+      id: '/_authenticated/candidates/$candidateId/interview'
+      path: '/candidates/$candidateId/interview'
+      fullPath: '/candidates/$candidateId/interview'
+      preLoaderRoute: typeof AuthenticatedCandidatesCandidateIdInterviewRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/assessments/new': {
-      id: '/_authenticated/assessments/new'
-      path: '/assessments/new'
-      fullPath: '/assessments/new'
-      preLoaderRoute: typeof AuthenticatedAssessmentsNewRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/evaluations/': {
-      id: '/_authenticated/evaluations/'
-      path: '/evaluations'
-      fullPath: '/evaluations/'
-      preLoaderRoute: typeof AuthenticatedEvaluationsIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/evaluations/$id': {
-      id: '/_authenticated/evaluations/$id'
-      path: '/evaluations/$id'
-      fullPath: '/evaluations/$id'
-      preLoaderRoute: typeof AuthenticatedEvaluationsIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/submissions/new': {
-      id: '/_authenticated/submissions/new'
-      path: '/submissions/new'
-      fullPath: '/submissions/new'
-      preLoaderRoute: typeof AuthenticatedSubmissionsNewRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/assessments/$id/': {
-      id: '/_authenticated/assessments/$id/'
-      path: '/assessments/$id'
-      fullPath: '/assessments/$id/'
-      preLoaderRoute: typeof AuthenticatedAssessmentsIdIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/assessments/$id/spec': {
-      id: '/_authenticated/assessments/$id/spec'
-      path: '/assessments/$id/spec'
-      fullPath: '/assessments/$id/spec'
-      preLoaderRoute: typeof AuthenticatedAssessmentsIdSpecRouteImport
+    '/_authenticated/jobs/$jobId/candidates/new': {
+      id: '/_authenticated/jobs/$jobId/candidates/new'
+      path: '/jobs/$jobId/candidates/new'
+      fullPath: '/jobs/$jobId/candidates/new'
+      preLoaderRoute: typeof AuthenticatedJobsJobIdCandidatesNewRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedCandidatesRoute: typeof AuthenticatedCandidatesRoute
-  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedAssessmentsNewRoute: typeof AuthenticatedAssessmentsNewRoute
-  AuthenticatedEvaluationsIdRoute: typeof AuthenticatedEvaluationsIdRoute
-  AuthenticatedSubmissionsNewRoute: typeof AuthenticatedSubmissionsNewRoute
-  AuthenticatedAssessmentsIndexRoute: typeof AuthenticatedAssessmentsIndexRoute
-  AuthenticatedEvaluationsIndexRoute: typeof AuthenticatedEvaluationsIndexRoute
-  AuthenticatedAssessmentsIdSpecRoute: typeof AuthenticatedAssessmentsIdSpecRoute
-  AuthenticatedAssessmentsIdIndexRoute: typeof AuthenticatedAssessmentsIdIndexRoute
+  AuthenticatedJobsNewRoute: typeof AuthenticatedJobsNewRoute
+  AuthenticatedCandidatesCandidateIdAnalysisRoute: typeof AuthenticatedCandidatesCandidateIdAnalysisRoute
+  AuthenticatedCandidatesCandidateIdInterviewRoute: typeof AuthenticatedCandidatesCandidateIdInterviewRoute
+  AuthenticatedJobsJobIdCandidatesNewRoute: typeof AuthenticatedJobsJobIdCandidatesNewRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedCandidatesRoute: AuthenticatedCandidatesRoute,
-  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedAssessmentsNewRoute: AuthenticatedAssessmentsNewRoute,
-  AuthenticatedEvaluationsIdRoute: AuthenticatedEvaluationsIdRoute,
-  AuthenticatedSubmissionsNewRoute: AuthenticatedSubmissionsNewRoute,
-  AuthenticatedAssessmentsIndexRoute: AuthenticatedAssessmentsIndexRoute,
-  AuthenticatedEvaluationsIndexRoute: AuthenticatedEvaluationsIndexRoute,
-  AuthenticatedAssessmentsIdSpecRoute: AuthenticatedAssessmentsIdSpecRoute,
-  AuthenticatedAssessmentsIdIndexRoute: AuthenticatedAssessmentsIdIndexRoute,
+  AuthenticatedJobsNewRoute: AuthenticatedJobsNewRoute,
+  AuthenticatedCandidatesCandidateIdAnalysisRoute:
+    AuthenticatedCandidatesCandidateIdAnalysisRoute,
+  AuthenticatedCandidatesCandidateIdInterviewRoute:
+    AuthenticatedCandidatesCandidateIdInterviewRoute,
+  AuthenticatedJobsJobIdCandidatesNewRoute:
+    AuthenticatedJobsJobIdCandidatesNewRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

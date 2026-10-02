@@ -1,4 +1,5 @@
 import { difficultyLabel, levelLabel } from "./constants";
+import { renderFollowUpsMarkdown, renderQuestionsMarkdown } from "./question-generator";
 import type { Assessment } from "./types";
 
 // Used only by mock mode. The real FastAPI server generates the specification.
@@ -62,6 +63,10 @@ ${r && r.relevant_experience.length
 
 ${a.custom_instructions || "_None provided._"}
 
+## Resume-Tailored Interview Questions
+
+${renderFollowUpsMarkdown(a)}
+
 ## Assessment Design Requirements
 
 - Each question must map to one or more of the company technical requirements above.
@@ -82,8 +87,12 @@ The resulting assessment must allow evaluation of:
 7. Requirements coverage
 8. Overall score per question (0-100)
 
+## Generated Assessment Questions
+
+${renderQuestionsMarkdown(a)}
+
 ## Instructions to Assessment-Generation LLM
 
-Use this specification to create a set of coding problems. Produce problem statements, input/output expectations, constraints, explicit requirements, and evaluation guidance for each question. Do not create an interactive coding or testing environment. Assign each question a stable identifier (Q1, Q2, ...).
+Use this specification to create a set of coding problems. The questions above are the baseline blueprint: keep their identifiers and requirement mapping, and expand each into a full problem with input/output expectations, constraints, explicit requirements, and evaluation guidance. Do not create an interactive coding or testing environment. Assign each question a stable identifier (Q1, Q2, ...).
 `;
 }
