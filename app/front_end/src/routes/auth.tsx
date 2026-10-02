@@ -1,6 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { api, errorMessage } from "@/lib/api";
+import { DemoSignInButton } from "@/components/demo-sign-in";
+import { BrandLogo } from "@/components/brand-logo";
 import { useAuth } from "@/lib/auth";
 import type { Role } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -14,10 +16,10 @@ import { ErrorState } from "@/components/app-ui";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign in — Calibrate" },
-      { name: "description", content: "Sign in to Calibrate to create technical assessments and review candidate evaluations." },
-      { property: "og:title", content: "Sign in — Calibrate" },
-      { property: "og:description", content: "Access your hiring team's assessments and evaluations." },
+      { title: "Sign in — Fit2Hire" },
+      { name: "description", content: "Sign in to Fit2Hire to set up interviews and review candidate analysis." },
+      { property: "og:title", content: "Sign in — Fit2Hire" },
+      { property: "og:description", content: "Access your hiring team's interviews and candidate analysis." },
     ],
   }),
   component: AuthPage,
@@ -46,7 +48,7 @@ function AuthPage() {
         ? await api.login({ email: form.email, password: form.password })
         : await api.register(form);
       signIn(res.access_token, res.user);
-      navigate({ to: "/dashboard", replace: true });
+      navigate({ to: "/jobs/new", replace: true });
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -57,12 +59,11 @@ function AuthPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md">
-        <div className="mb-6 text-center">
-          <div className="text-xl font-semibold tracking-tight">Calibrate</div>
-          <div className="text-sm text-muted-foreground">Technical Assessment Platform</div>
-        </div>
         <Card>
           <CardHeader>
+            <div className="flex justify-center pb-2">
+              <BrandLogo to="/" imgClassName="h-14" />
+            </div>
             <Tabs value={mode} onValueChange={(v) => { setMode(v as typeof mode); setError(null); }}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="signin">Sign in</TabsTrigger>
@@ -71,7 +72,7 @@ function AuthPage() {
             </Tabs>
             <CardTitle className="pt-4">{mode === "signin" ? "Welcome back" : "Create your account"}</CardTitle>
             <CardDescription>
-              {mode === "signin" ? "Sign in to continue to your assessments." : "Choose your role to tailor your workspace."}
+              {mode === "signin" ? "Sign in to continue." : "Choose your role to tailor your workspace."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -83,7 +84,7 @@ function AuthPage() {
                   <div className="space-y-2">
                     <Label>Role</Label>
                     <RadioGroup value={form.role} onValueChange={(v) => set("role", v)} className="grid grid-cols-2 gap-2">
-                      {[["hiring_manager", "Hiring Manager", "Creates assessments"], ["recruiter", "Recruiter", "Evaluates submissions"]].map(([v, l, d]) => (
+                      {[["hiring_manager", "Hiring Manager", "Defines what the role needs"], ["recruiter", "Recruiter", "Runs the interview process"]].map(([v, l, d]) => (
                         <Label key={v} htmlFor={v} className="flex cursor-pointer items-start gap-2 rounded-md border p-3 font-normal has-[:checked]:border-primary has-[:checked]:bg-accent">
                           <RadioGroupItem value={v!} id={v} className="mt-0.5" />
                           <span><span className="block font-medium">{l}</span><span className="text-xs text-muted-foreground">{d}</span></span>
@@ -102,6 +103,7 @@ function AuthPage() {
                 {busy ? "Please wait..." : mode === "signin" ? "Sign in" : "Create account"}
               </Button>
             </form>
+            <DemoSignInButton className="mt-3 w-full" />
           </CardContent>
         </Card>
       </div>

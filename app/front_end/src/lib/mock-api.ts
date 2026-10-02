@@ -4,7 +4,7 @@
 import { ApiError } from "./api-error";
 import type {
   Analysis, AuthResponse, Candidate, CandidateInput, ExtractedText, Interview, InterviewStyle,
-  Job, JobInput, PersonalizedQuestion, Role, Submission, User,
+  Job, JobInput, PersonalizedQuestion, QuestionType, Role, Submission, User,
 } from "./types";
 
 interface Db {
@@ -17,7 +17,7 @@ interface Db {
   analyses: Analysis[];
 }
 
-const KEY = "tap_mock_db_v2";
+const KEY = "tap_mock_db_v5";
 const delay = (ms = 350) => new Promise((r) => setTimeout(r, ms));
 const uid = () => Math.random().toString(36).slice(2, 10);
 const now = () => new Date().toISOString();
@@ -45,12 +45,17 @@ Most of our pain is slow queries for our largest tenants, which the public posti
 
 We rely on written reasoning in pull requests because we are rarely online at the same time. Past hires struggled when they could not explain the trade-offs behind their code.`;
 
+const SAMPLE_EXISTING_QUESTIONS = `1. Tell me about yourself and why you want this role.
+2. Describe a project you are proud of and your part in it.
+3. How do you decide what to work on when everything is urgent?
+4. What is the difference between a process and a thread?`;
+
 // ---------------------------------------------------------------- Sample interview
 
 const QUESTIONS_JORDAN: Omit<PersonalizedQuestion, "question_id">[] = [
   {
-    type: "technical",
-    text: "Your resume says you cut p95 latency on a FastAPI service by adding Redis caching. Walk me through how you decided what to cache and how you handled invalidation.",
+    type: "debugging",
+    text: "A customer reports that a shipment lookup shows stale results after an update. Your resume says you added Redis caching at Brightline. Walk me through how you would find out whether the cache is the cause.",
     rationale: "Resume: Redis caching work at Brightline. Job: caching for the shipment lookup endpoints.",
   },
   {
@@ -59,17 +64,22 @@ const QUESTIONS_JORDAN: Omit<PersonalizedQuestion, "question_id">[] = [
     rationale: "Hiring manager notes: the team works across time zones and relies on written reasoning.",
   },
   {
-    type: "technical",
-    text: "You built a retrieval pipeline on a vector database. How would you approach a slow PostgreSQL query for a tenant with 50 million rows?",
-    rationale: "Resume: retrieval pipeline project. Hiring manager notes: slow queries for the largest tenants.",
+    type: "situational",
+    text: "Our largest tenant's lookup is timing out, and the teammate who owns it is offline for the next eight hours. What do you do, and what do you write down for them?",
+    rationale: "Hiring manager notes: slow queries for the largest tenants, and a team that is rarely online at the same time.",
+  },
+  {
+    type: "system_design",
+    text: "You built a retrieval pipeline on a vector database. How would you design pagination and caching for shipment lookups on a tenant with 50 million rows?",
+    rationale: "Resume: retrieval pipeline project. Hiring manager notes: first-quarter work on pagination and caching.",
   },
 ];
 
 const QUESTIONS_RILEY: Omit<PersonalizedQuestion, "question_id">[] = [
   {
-    type: "technical",
-    text: "Your resume lists a REST API you built for a university course scheduler. How did you decide what each endpoint returned, and what would you change now?",
-    rationale: "Resume: course scheduler API project. Job: designing and operating REST APIs.",
+    type: "debugging",
+    text: "During your internship you wrote reporting queries on PostgreSQL. Tell me about a query that returned the wrong numbers and how you tracked down why.",
+    rationale: "Resume: PostgreSQL internship. Job: strong SQL.",
   },
   {
     type: "behavioral",
@@ -77,11 +87,91 @@ const QUESTIONS_RILEY: Omit<PersonalizedQuestion, "question_id">[] = [
     rationale: "Hiring manager notes: the team works across time zones and relies on written reasoning.",
   },
   {
-    type: "technical",
-    text: "You mention SQL coursework and one internship using PostgreSQL. What is the largest table you have queried, and how did you check that a query was fast enough?",
-    rationale: "Resume: PostgreSQL internship. Hiring manager notes: slow queries for the largest tenants.",
+    type: "situational",
+    text: "You are asked to speed up a slow query on a table far larger than any you have worked with. What are your first three steps?",
+    rationale: "Resume: the largest stated experience is internship reporting queries. Hiring manager notes: slow queries for the largest tenants.",
+  },
+  {
+    type: "system_design",
+    text: "Your course scheduler API returned full lists. How would you redesign one endpoint so a client can page through thousands of results?",
+    rationale: "Resume: course scheduler API project. Job: pagination for the shipment lookup endpoints.",
   },
 ];
+
+// Demo mode cannot read a resume, so new candidates get these general samples. Each type has
+// three written samples. Beyond that, plain numbered stand-ins keep the count correct.
+// The real server writes every question from the candidate's resume and the job.
+const DEMO_NOTE = "Sample question for demo mode. The real interview ties this to the candidate's resume and the job.";
+const SAMPLE_QUESTIONS: Partial<Record<QuestionType, string[]>> = {
+  debugging: [
+    "A request that normally takes 200 ms now takes 5 seconds for one customer only. Walk me through how you would find the cause.",
+    "You deploy a change and error rates rise slowly over an hour. What do you check first, and in what order?",
+    "Tell me about the hardest bug you have tracked down. How did you narrow it?",
+  ],
+  behavioral: [
+    "Tell me about a time a reviewer disagreed with your approach. What did you do?",
+    "Describe a project that did not go to plan. What did you change afterward?",
+    "Tell me about a time you had to learn something quickly to finish a task.",
+  ],
+  situational: [
+    "A teammate who owns a failing service is offline for eight hours. What do you do, and what do you write down for them?",
+    "You are given a task with unclear requirements and a deadline this week. How do you start?",
+    "You find a serious problem in code that has already shipped. What are your first three steps?",
+  ],
+  system_design: [
+    "How would you design pagination and caching for a lookup that serves very large customers?",
+    "Design a service that accepts file uploads and makes them searchable. What are the main parts?",
+    "How would you add rate limiting to a public API without hurting your largest users?",
+  ],
+  resume_deep_dive: [
+    "Pick the project on your resume you know best. What was the hardest decision in it, and what did you choose?",
+    "Your resume lists several technologies. Which one have you used most deeply, and what limit of it did you run into?",
+    "Take one result claimed on your resume. How was it measured, and what was your part in it?",
+  ],
+  code_review: [
+    "You are reviewing a change that works but has no tests and one very long function. What feedback do you give, and how do you word it?",
+    "A teammate fixes a bug by adding a special case. What do you ask before approving it?",
+    "What do you look for first when reviewing code that touches a database query?",
+  ],
+  data_modeling: [
+    "How would you model customers, orders, and shipments so that a shipment's history can be queried quickly?",
+    "A table has grown to hundreds of millions of rows. What would you change in its design, and what would you leave alone?",
+    "When would you store data in a JSON column instead of separate tables? Give an example of each.",
+  ],
+  testing_strategy: [
+    "How would you test a paginated lookup endpoint? Name the cases you would cover first.",
+    "A feature depends on an outside service that is slow and sometimes fails. How do you test it reliably?",
+    "What would you automate before a weekly release, and what would you still check by hand?",
+  ],
+  motivation: [
+    "What about this role made you apply, and what do you hope to be doing in it after six months?",
+    "What kind of work gives you the most energy, and what kind drains it?",
+    "Why this company's problem space, compared with others you could work in?",
+  ],
+  leadership: [
+    "Tell me about a time you led a piece of work without being the manager. How did you get people aligned?",
+    "Describe a time you gave a teammate difficult feedback. What happened next?",
+    "How do you decide what your team should not work on?",
+  ],
+};
+
+// Builds the question list for one candidate: for each selected type, as many questions as the
+// job asks for. A candidate's own sample questions are used first, then the general samples.
+function pickQuestions(job: Job, own: Omit<PersonalizedQuestion, "question_id">[]): Omit<PersonalizedQuestion, "question_id">[] {
+  const picked: Omit<PersonalizedQuestion, "question_id">[] = [];
+  for (const type of Object.keys(SAMPLE_QUESTIONS) as QuestionType[]) {
+    if (!job.question_types.includes(type)) continue;
+    const wanted = job.question_counts?.[type] ?? 1;
+    const general = (SAMPLE_QUESTIONS[type] ?? []).map((text) => ({ type, text, rationale: DEMO_NOTE }));
+    const pool = [...own.filter((q) => q.type === type), ...general];
+    // There is no per-type limit, so fill any shortfall with numbered stand-ins.
+    for (let n = pool.length + 1; n <= wanted; n++) {
+      pool.push({ type, text: `Demo stand-in for ${type.replace(/_/g, " ")} question ${n}. The real server writes this one.`, rationale: DEMO_NOTE });
+    }
+    picked.push(...pool.slice(0, wanted));
+  }
+  return picked;
+}
 
 const problemStatement = (style: InterviewStyle) => `# Paginated shipment lookup
 
@@ -186,10 +276,10 @@ def list_shipments(events, tenant_id, cursor=None, limit=50):
 function sampleInterview(
   candidate: Candidate,
   job: Job,
-  questions: Omit<PersonalizedQuestion, "question_id">[] = QUESTIONS_JORDAN,
+  own: Omit<PersonalizedQuestion, "question_id">[] = [],
 ): Interview {
-  // Only question types the hiring manager selected on Page 1 are used.
-  const allowed = questions.filter((q) => job.question_types.includes(q.type));
+  // Only the question types selected on Page 1 are used, in the quantities chosen there.
+  const allowed = pickQuestions(job, own);
   return {
     candidate_id: candidate.id,
     candidate_name: candidate.name,
@@ -455,7 +545,9 @@ function seed(): Db {
     id: 1,
     title: "Backend Software Engineer",
     posting_text: SAMPLE_POSTING,
-    question_types: ["behavioral", "technical", "coding"],
+    existing_questions: SAMPLE_EXISTING_QUESTIONS,
+    question_types: ["debugging", "behavioral", "system_design", "coding"],
+    question_counts: { debugging: 1, behavioral: 1, system_design: 1 },
     context: SAMPLE_CONTEXT,
     created_at: created,
     updated_at: created,
@@ -555,6 +647,20 @@ export const mockApi = {
     const db = load();
     const u = db.users.find((x) => x.email.toLowerCase() === d.email.toLowerCase() && x.password === d.password);
     if (!u) throw new ApiError(401, "Incorrect email or password.");
+    db.currentUserId = u.id;
+    save(db);
+    return { access_token: `mock.${u.id}`, user: publicUser(u) };
+  },
+  // Demo mode only: signs in as a built-in sample user, so no account is needed.
+  async demoLogin(): Promise<AuthResponse> {
+    await delay(150);
+    const db = load();
+    let u = db.users.find((x) => x.id === "demo");
+    if (!u) {
+      // The password is random and never shown, so this user cannot be reached through the form.
+      u = { id: "demo", name: "Demo User", email: "demo@fit2hire.test", role: "hiring_manager", company_name: "Northwind Analytics", password: uid() };
+      db.users.push(u);
+    }
     db.currentUserId = u.id;
     save(db);
     return { access_token: `mock.${u.id}`, user: publicUser(u) };

@@ -1,6 +1,6 @@
 # Page Workflow
 
-This file is the source of truth for the product flow: four pages and two LLM calls.
+This file is the source of truth for the product flow: five pages and two LLM calls.
 Teammates use it to stay aligned. AI coding assistants must treat it as rules, not suggestions.
 
 ## Who uses the app
@@ -16,7 +16,8 @@ Job + Key Details + Team Priorities → Resume → AI-Generated Interview → Ca
 
 | Step | Name | Takes in | Produces |
 | --- | --- | --- | --- |
-| Page 1 | Job Setup | Job posting, priorities, hiring manager context | Job context |
+| Page 0 | Home and Sign In | Email, password, role | A signed-in recruiter or hiring manager |
+| Page 1 | Job Setup | Job posting, priorities, existing interview questions, hiring manager context | Job context |
 | Page 2 | Candidate Setup | Resume, interview style | Candidate context |
 | LLM Call #1 | Generate interview | Page 1 + Page 2 as one Markdown context file | Interview content |
 | Page 3 | Interview | Interview content, then the candidate's uploaded work | Solution + process documentation |
@@ -25,13 +26,44 @@ Job + Key Details + Team Priorities → Resume → AI-Generated Interview → Ca
 
 ## Rules for development
 
-1. **Follow the flow in order.** There are exactly four pages and two LLM calls. Do not add, remove, merge, rename, or reorder them without updating this file first.
+1. **Follow the flow in order.** There are exactly five pages, Page 0 through Page 4, and two LLM calls. Do not add, remove, merge, rename, or reorder them without updating this file first.
 2. **Build what is listed.** Every field and section below is required. Do not invent extra fields, pages, or analysis sections.
 3. **No candidate-facing features.** Do not build candidate accounts, candidate screens, or an in-app coding environment.
 4. **One Markdown context file per interview.** LLM Call #1 creates it from Pages 1 and 2. LLM Call #2 adds Page 3 results to that same file. Never drop earlier context.
 5. **Page 1 context reaches both LLM calls.** The hiring manager's input shapes the interview and the final analysis.
 6. **The frontend never calls an LLM directly.** Both LLM calls run on the FastAPI server. See `AGENTS.md` and `API_CONTRACT.md`.
 7. **Ask when unsure.** If this file is unclear, or conflicts with existing code, stop and ask before building.
+
+## Moving between pages
+
+- Pages 1 to 4 each have a Back button at the bottom that returns to the previous page with its saved information.
+- Going back to Page 1 or Page 2 edits the saved job or candidate. It does not create a second one.
+- Editing a job does not change interviews that were already generated. Regenerating on Page 2 replaces that candidate's interview.
+
+---
+
+## Page 0: Home and Sign In
+
+**Purpose:** Explain what the product does and let a recruiter or hiring manager sign in.
+
+### Before signing in
+
+- This is the only page visible before signing in.
+- It describes the product in terms of the core pipeline.
+- The user signs in, or creates an account and picks a role: recruiter or hiring manager.
+- After signing in, the user goes to Page 1.
+- In demo mode, a "Try the demo" button signs in as a sample user with no account needed.
+
+### After signing in
+
+A signed-in user can come back to this page at any time. It then shows:
+
+- A "Start a new job" button that goes to Page 1.
+- A list of candidates in progress. Each one links to the page it is waiting on.
+
+The list exists because the candidate works outside the app. The recruiter or hiring manager leaves after Page 3 and comes back later to upload the candidate's work.
+
+Nothing on this page is sent to either LLM call.
 
 ---
 
@@ -49,9 +81,18 @@ The posting comes straight from the company's original public posting. The user 
 ### Key priorities dropdown
 
 - A limited dropdown of the key things being looked for. The user can select more than one.
-- The options are the question types: behavioral, situational, technical, system design, coding.
-- Coding is always selected, because every interview includes a technical problem.
-- The selection decides which types of personalized questions are generated on Page 3.
+- The options are the question types: debugging, behavioral, situational, system design, resume deep dive, code review, data modeling, testing strategy, motivation, leadership.
+- Each selected type has a quantity, changed with + and - buttons beside it. It starts at one.
+- The page shows the total number of questions that will be generated.
+- The total cannot exceed 20, counting the coding problem. A single type has no limit of its own. The page mentions the limit only when the user reaches it.
+- Coding is not an option. It is always included, because every interview includes a technical problem.
+- The selection decides which types of personalized questions are generated on Page 3, and how many of each.
+
+### Existing interview questions
+
+- An optional box for the questions the team already asks every candidate.
+- The user types them or uploads a file.
+- LLM Call #1 receives them so that no generated question repeats one of them.
 
 ### Hiring manager context
 
@@ -76,8 +117,8 @@ All Page 1 information is used as context for the interview and the final analys
 
 ### Candidate
 
-- Enter the candidate's name.
 - Upload the candidate's resume.
+- The candidate's name is read from the resume and shown on the page. The user types it only if it cannot be read.
 
 ### Technical interview style
 
@@ -121,11 +162,13 @@ The candidate does not open this page. The recruiter or hiring manager takes the
 
 ### Personalized questions
 
-Generate a few questions to add to the company's typical interview. They are based on:
+Generate the chosen number of questions for each selected type, to add to the company's typical interview. They are based on:
 
 - Candidate resume
 - Job requirements
 - The hiring manager's key priorities from the Page 1 dropdown
+
+No generated question may repeat one of the existing interview questions from Page 1.
 
 ### Technical problem
 
