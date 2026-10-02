@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ErrorState } from "@/components/app-ui";
+import { BrandLogo } from "@/components/brand-logo";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -57,12 +58,11 @@ function AuthPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md">
-        <div className="mb-6 text-center">
-          <div className="text-xl font-semibold tracking-tight">Calibrate</div>
-          <div className="text-sm text-muted-foreground">Technical Assessment Platform</div>
-        </div>
         <Card>
           <CardHeader>
+            <div className="flex justify-center pb-2">
+              <BrandLogo to="/" imgClassName="h-14" />
+            </div>
             <Tabs value={mode} onValueChange={(v) => { setMode(v as typeof mode); setError(null); }}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="signin">Sign in</TabsTrigger>
