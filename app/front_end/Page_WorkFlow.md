@@ -50,8 +50,10 @@ The user must be able to enter the posting by hand or upload it. It contains:
 
 ### Key priorities dropdown
 
-- A limited dropdown list of the key things being looked for.
-- It captures what matters most to the hiring manager.
+- A limited dropdown of the key things being looked for. The user can select more than one.
+- The options are the question types: behavioral, situational, technical, system design, coding.
+- Coding is always selected, because every interview includes a technical problem.
+- The selection decides which types of personalized questions are generated on Page 3.
 
 ### Hiring manager context
 
@@ -139,6 +141,7 @@ The problem must include:
 - The problem statement
 - Starter code, if that option was selected on Page 2
 - Test cases
+- A reference solution, for the hiring team and LLM Call #2 only. It is never given to the candidate.
 
 The candidate documents their implementation plan and process while solving.
 
