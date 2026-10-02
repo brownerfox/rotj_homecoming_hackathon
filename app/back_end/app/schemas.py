@@ -1,6 +1,6 @@
 """Request and response bodies.
 
-Each resource has three shapes:
+Resources have up to three shapes:
   *Create  POST body. Required fields have no default.
   *Update  PATCH body. Omitted fields are left unchanged. Columns that can't be null are declared
            `X = Field(default=None)` rather than `X | None`: leaving the field out is fine, but
@@ -13,7 +13,7 @@ from typing import Annotated, TypeVar
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
-from app.models import ProgrammingLanguage, QuestionType
+from app.models import TYPE_ORDER, CandidateStatus, ProgrammingLanguage, QuestionType
 
 S = TypeVar("S", bound=str)
 
@@ -42,7 +42,11 @@ def _dedupe(items: list[S]) -> list[S]:
 
 
 SkillList = Annotated[list[NonEmptyStr], AfterValidator(_dedupe)]
-QuestionTypeList = Annotated[list[QuestionType], Field(min_length=1), AfterValidator(_dedupe)]
+
+
+def _by_type(items: list) -> list:
+    """Questions are always listed by type, in QuestionType's declaration order."""
+    return sorted(items, key=lambda item: (TYPE_ORDER[item.type], getattr(item, "id", 0)))
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -54,15 +58,12 @@ def _as_utc(value: datetime) -> datetime:
 UTCDateTime = Annotated[datetime, AfterValidator(_as_utc)]
 
 
-class Timestamps(BaseModel):
+class Stored(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    id: int
     created_at: UTCDateTime
     updated_at: UTCDateTime
-
-
-class Stored(Timestamps):
-    id: int
 
 
 # ---------------------------------------------------------------------------- Question types
@@ -76,100 +77,94 @@ class QuestionTypeInfo(BaseModel):
 # ---------------------------------------------------------------------------------------- Jobs
 
 
+class JobQuestionCount(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    type: QuestionType
+    # Capped because every question is generated (and paid for) once per candidate.
+    count: Annotated[int, Field(ge=1, le=10)]
+
+
+def _one_entry_per_type(items: list[JobQuestionCount]) -> list[JobQuestionCount]:
+    types = [item.type for item in items]
+    if len(set(types)) != len(types):
+        raise ValueError("list each question type once, and use count to ask for more than one")
+    return _by_type(items)
+
+
+QuestionCounts = Annotated[list[JobQuestionCount], AfterValidator(_one_entry_per_type)]
+
+
 class JobCreate(BaseModel):
     title: NonEmptyStr
-    context: NonEmptyStr
+    description: NonEmptyStr
     skills: SkillList = []
-    question_types: QuestionTypeList
+    coding_brief: str | None = None
+    starter_code: bool = True
+    questions: QuestionCounts = []
 
 
 class JobUpdate(BaseModel):
     title: NonEmptyStr = Field(default=None)
-    context: NonEmptyStr = Field(default=None)
+    description: NonEmptyStr = Field(default=None)
     skills: SkillList = Field(default=None)
-    question_types: QuestionTypeList = Field(default=None)
+    coding_brief: str | None = None
+    starter_code: bool = Field(default=None)
+    # Replaces the whole list. Types left out are removed.
+    questions: QuestionCounts = Field(default=None)
 
 
 class JobRead(JobCreate, Stored):
     pass
 
 
-# ----------------------------------------------------------------------------------- Questions
-
-
-class QuestionCreate(BaseModel):
-    type: QuestionType
-    text: NonEmptyStr
-    skills: SkillList = []
-    rubric: str | None = None
-    notes: str | None = None
-
-
-class QuestionUpdate(BaseModel):
-    type: QuestionType = Field(default=None)
-    text: NonEmptyStr = Field(default=None)
-    skills: SkillList = Field(default=None)
-    rubric: str | None = None
-    notes: str | None = None
-
-
-class QuestionRead(QuestionCreate, Stored):
+class ExistingQuestionFileRead(Stored):
     job_id: int
-
-
-# ---------------------------------------------------------------------------- Coding challenges
-
-
-class CodingChallengeCreate(BaseModel):
-    language: ProgrammingLanguage
-    skeleton_code: Code
-    test_code: Code
-    reference_solution: Code
-
-
-class CodingChallengeUpdate(BaseModel):
-    language: ProgrammingLanguage = Field(default=None)
-    skeleton_code: Code = Field(default=None)
-    test_code: Code = Field(default=None)
-    reference_solution: Code = Field(default=None)
-
-
-class CodingChallengeRead(CodingChallengeCreate, Stored):
-    question_id: int
+    file_name: str
+    text: str
 
 
 # ---------------------------------------------------------------------------------- Candidates
 
 
-class CandidateCreate(BaseModel):
-    name: NonEmptyStr
-    resume_text: str | None = None
+class CandidateSummary(Stored):
+    job_id: int
+    name: str | None
+    resume_file_name: str
+    status: CandidateStatus
+    error: str | None
 
 
 class CandidateUpdate(BaseModel):
     name: NonEmptyStr = Field(default=None)
-    resume_text: str | None = None
 
 
-class CandidateRead(CandidateCreate, Stored):
-    job_id: int
-
-
-# ------------------------------------------------------------------------- Candidate questions
-
-
-class CandidateQuestionCreate(BaseModel):
-    question_id: int
-    rationale: str | None = None
+class CandidateQuestionRead(Stored):
+    type: QuestionType
+    prompt: str
 
 
 class CandidateQuestionUpdate(BaseModel):
-    rationale: str | None = None
+    prompt: NonEmptyStr
 
 
-class CandidateQuestionRead(Timestamps):
-    candidate_id: int
-    question_id: int
-    rationale: str | None
-    # The full question is embedded so one request renders a candidate's interview plan.
-    question: QuestionRead
+class CodingChallengeRead(Stored):
+    language: ProgrammingLanguage
+    prompt: str
+    starter_code: str | None
+    tests: str | None
+    solution_code: str
+
+
+class CodingChallengeUpdate(BaseModel):
+    prompt: NonEmptyStr = Field(default=None)
+    # Set both or clear both: no starter code means no tests.
+    starter_code: Code | None = None
+    tests: Code | None = None
+    solution_code: Code = Field(default=None)
+
+
+class CandidateDetail(CandidateSummary):
+    resume_text: str | None
+    questions: Annotated[list[CandidateQuestionRead], AfterValidator(_by_type)]
+    coding_challenge: CodingChallengeRead | None

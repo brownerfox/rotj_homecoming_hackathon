@@ -1,40 +1,46 @@
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import JSON, DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, Enum, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
 
 class QuestionType(StrEnum):
-    """The fixed set of question formats. Add a member here to add a type; nothing else changes."""
+    """The fixed set of question types. Declaration order is display order: questions are
+    always listed by type, in this order. Add a member here to add a type."""
 
     BEHAVIORAL = "behavioral"
     SITUATIONAL = "situational"
     TECHNICAL = "technical"
+    DEBUGGING = "debugging"
     SYSTEM_DESIGN = "system_design"
-    CODING = "coding"
 
 
+# Shown in the UI and given to Claude, so it knows what each type means.
 QUESTION_TYPE_DESCRIPTIONS: dict[QuestionType, str] = {
     QuestionType.BEHAVIORAL: "Past experience: 'Tell me about a time you...'",
-    QuestionType.SITUATIONAL: "Hypothetical scenario: 'What would you do if...'",
-    QuestionType.TECHNICAL: "Conceptual knowledge, answered verbally.",
+    QuestionType.SITUATIONAL: "A hypothetical scenario: 'What would you do if...'",
+    QuestionType.TECHNICAL: "Conceptual knowledge, answered out loud.",
+    QuestionType.DEBUGGING: "Talk through finding the cause of a bug or production problem. May include a short code snippet.",
     QuestionType.SYSTEM_DESIGN: "Open-ended architecture and trade-off discussion.",
-    QuestionType.CODING: "Hands-on problem. The only type that can have a coding challenge.",
 }
+
+TYPE_ORDER = {question_type: position for position, question_type in enumerate(QuestionType)}
 
 
 class ProgrammingLanguage(StrEnum):
-    """Languages a coding challenge can be written in (matches the frontend's language picker)."""
+    """Languages a coding challenge can be written in. Python only for the demo."""
 
     PYTHON = "python"
-    JAVA = "java"
-    JAVASCRIPT = "javascript"
-    TYPESCRIPT = "typescript"
-    CPP = "cpp"
-    C = "c"
+
+
+class CandidateStatus(StrEnum):
+    PENDING = "pending"  # uploaded, waiting for a generation slot
+    GENERATING = "generating"
+    READY = "ready"
+    FAILED = "failed"  # see Candidate.error
 
 
 def _enum_column(enum_cls: type[StrEnum]) -> Enum:
@@ -51,8 +57,7 @@ class Timestamps:
 
 
 # Parent-side relationships use passive_deletes so ON DELETE CASCADE in the database does the
-# cleanup: deleting a job removes its questions, candidates, coding challenges, and
-# candidate-question links whether the delete comes from the ORM or from raw SQL.
+# cleanup: deleting a job removes everything under it whether the delete comes from the ORM or SQL.
 _CHILDREN = {"cascade": "all, delete-orphan", "passive_deletes": True}
 
 
@@ -61,49 +66,49 @@ class Job(Timestamps, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
-    # Free-form description of the role: team, responsibilities, seniority, what success looks like.
-    context: Mapped[str] = mapped_column(Text)
-    # Skills the hiring team wants to assess, e.g. ["Python", "SQL", "System design"].
+    description: Mapped[str] = mapped_column(Text)
+    # Skills the hiring team is looking for, as free text, e.g. ["Python", "SQL"].
     skills: Mapped[list[str]] = mapped_column(JSON, default=list)
-    # QuestionType values this job's questions may use, e.g. ["behavioral", "coding"].
-    question_types: Mapped[list[str]] = mapped_column(JSON, default=list)
+    # The hiring manager's notes on what the coding challenge should be like.
+    coding_brief: Mapped[str | None] = mapped_column(Text)
+    # Whether coding challenges come with starter code and tests (no starter code means no tests).
+    starter_code: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    questions: Mapped[list["Question"]] = relationship(back_populates="job", **_CHILDREN)
+    questions: Mapped[list["JobQuestion"]] = relationship(back_populates="job", **_CHILDREN)
+    existing_question_files: Mapped[list["ExistingQuestionFile"]] = relationship(
+        back_populates="job", order_by="ExistingQuestionFile.id", **_CHILDREN
+    )
     candidates: Mapped[list["Candidate"]] = relationship(back_populates="job", **_CHILDREN)
 
 
-class Question(Timestamps, Base):
-    __tablename__ = "questions"
+class JobQuestion(Timestamps, Base):
+    """How many questions of one type each candidate for this job gets."""
+
+    __tablename__ = "job_questions"
+    __table_args__ = (
+        UniqueConstraint("job_id", "type"),  # one row per type; ask for more with a higher count
+        CheckConstraint("count >= 1", name="count_positive"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
     type: Mapped[QuestionType] = mapped_column(_enum_column(QuestionType))
-    text: Mapped[str] = mapped_column(Text)
-    skills: Mapped[list[str]] = mapped_column(JSON, default=list)
-    # Markdown guidance interviewers score answers against.
-    rubric: Mapped[str | None] = mapped_column(Text)
-    # Free-form interviewer notes.
-    notes: Mapped[str | None] = mapped_column(Text)
+    count: Mapped[int]
 
     job: Mapped[Job] = relationship(back_populates="questions")
-    coding_challenge: Mapped["CodingChallenge | None"] = relationship(back_populates="question", **_CHILDREN)
-    candidate_links: Mapped[list["CandidateQuestion"]] = relationship(back_populates="question", **_CHILDREN)
 
 
-class CodingChallenge(Timestamps, Base):
-    __tablename__ = "coding_challenges"
+class ExistingQuestionFile(Timestamps, Base):
+    """A PDF of questions the hiring team already asks, stored as text. Generation avoids repeating them."""
+
+    __tablename__ = "existing_question_files"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    # unique=True makes this one-to-one: a coding question has at most one challenge.
-    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id", ondelete="CASCADE"), unique=True)
-    language: Mapped[ProgrammingLanguage] = mapped_column(_enum_column(ProgrammingLanguage))
-    # Starter code handed to the candidate; defines the function/class names the tests call.
-    skeleton_code: Mapped[str] = mapped_column(Text)
-    # Tests run against a candidate's solution. Never show these or the reference to candidates.
-    test_code: Mapped[str] = mapped_column(Text)
-    reference_solution: Mapped[str] = mapped_column(Text)
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
+    file_name: Mapped[str] = mapped_column(String(255))
+    text: Mapped[str] = mapped_column(Text)
 
-    question: Mapped[Question] = relationship(back_populates="coding_challenge")
+    job: Mapped[Job] = relationship(back_populates="existing_question_files")
 
 
 class Candidate(Timestamps, Base):
@@ -111,24 +116,49 @@ class Candidate(Timestamps, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
-    name: Mapped[str] = mapped_column(String(200))
+    # Read from the resume during generation; null until then, or if the resume has no name.
+    name: Mapped[str | None] = mapped_column(String(200))
+    resume_file_name: Mapped[str] = mapped_column(String(255))
+    # Null only if the PDF couldn't be read.
     resume_text: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[CandidateStatus] = mapped_column(_enum_column(CandidateStatus), default=CandidateStatus.PENDING)
+    # Why generation failed, in words a recruiter can act on.
+    error: Mapped[str | None] = mapped_column(Text)
 
     job: Mapped[Job] = relationship(back_populates="candidates")
-    question_links: Mapped[list["CandidateQuestion"]] = relationship(back_populates="candidate", **_CHILDREN)
+    # Generated copies, never linked back to JobQuestion: editing the job doesn't change them.
+    questions: Mapped[list["CandidateQuestion"]] = relationship(back_populates="candidate", **_CHILDREN)
+    coding_challenge: Mapped["CodingChallenge | None"] = relationship(back_populates="candidate", **_CHILDREN)
 
 
 class CandidateQuestion(Timestamps, Base):
-    """Junction table: a question chosen for (or written for) one candidate, e.g. a follow-up
-    probing something on their resume. The (candidate_id, question_id) pair is the primary
-    key, so the same question can't be assigned to the same candidate twice."""
-
     __tablename__ = "candidate_questions"
 
-    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id", ondelete="CASCADE"), primary_key=True)
-    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id", ondelete="CASCADE"), primary_key=True, index=True)
-    # Why this question targets this candidate, e.g. "Resume claims a zero-downtime Postgres migration".
-    rationale: Mapped[str | None] = mapped_column(Text)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id", ondelete="CASCADE"), index=True)
+    type: Mapped[QuestionType] = mapped_column(_enum_column(QuestionType))
+    prompt: Mapped[str] = mapped_column(Text)
 
-    candidate: Mapped[Candidate] = relationship(back_populates="question_links")
-    question: Mapped[Question] = relationship(back_populates="candidate_links")
+    candidate: Mapped[Candidate] = relationship(back_populates="questions")
+
+
+class CodingChallenge(Timestamps, Base):
+    __tablename__ = "coding_challenges"
+    __table_args__ = (
+        CheckConstraint("(starter_code IS NULL) = (tests IS NULL)", name="starter_code_and_tests_together"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # unique=True makes this one-to-one: one challenge per candidate.
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id", ondelete="CASCADE"), unique=True)
+    language: Mapped[ProgrammingLanguage] = mapped_column(_enum_column(ProgrammingLanguage))
+    # The problem statement the candidate reads.
+    prompt: Mapped[str] = mapped_column(Text)
+    # Both null when the job had starter code turned off. The candidate's file is solution.py,
+    # and the tests import from it.
+    starter_code: Mapped[str | None] = mapped_column(Text)
+    tests: Mapped[str | None] = mapped_column(Text)
+    # Reference solution for interviewers.
+    solution_code: Mapped[str] = mapped_column(Text)
+
+    candidate: Mapped[Candidate] = relationship(back_populates="coding_challenge")
