@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { api, errorMessage } from "@/lib/api";
 import { DemoSignInButton } from "@/components/demo-sign-in";
+import { BrandLogo } from "@/components/brand-logo";
 import { useAuth } from "@/lib/auth";
 import type { Role } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -15,9 +16,9 @@ import { ErrorState } from "@/components/app-ui";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign in — Calibrate" },
-      { name: "description", content: "Sign in to Calibrate to set up interviews and review candidate analysis." },
-      { property: "og:title", content: "Sign in — Calibrate" },
+      { title: "Sign in — Fit2Hire" },
+      { name: "description", content: "Sign in to Fit2Hire to set up interviews and review candidate analysis." },
+      { property: "og:title", content: "Sign in — Fit2Hire" },
       { property: "og:description", content: "Access your hiring team's interviews and candidate analysis." },
     ],
   }),
@@ -58,12 +59,11 @@ function AuthPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md">
-        <div className="mb-6 text-center">
-          <div className="text-xl font-semibold tracking-tight">Calibrate</div>
-          <div className="text-sm text-muted-foreground">Personalized Technical Interviews</div>
-        </div>
         <Card>
           <CardHeader>
+            <div className="flex justify-center pb-2">
+              <BrandLogo to="/" imgClassName="h-14" />
+            </div>
             <Tabs value={mode} onValueChange={(v) => { setMode(v as typeof mode); setError(null); }}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="signin">Sign in</TabsTrigger>
