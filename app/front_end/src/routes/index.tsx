@@ -26,11 +26,11 @@ export const Route = createFileRoute("/")({
 });
 
 // The core pipeline from Page_WorkFlow.md, one card per page.
-const STEPS = [
-  ["Set up the job", "Add the public posting, the key priorities, and the hiring manager's context."],
-  ["Add the candidate", "Upload a resume and choose the technical interview style."],
-  ["Run the interview", "Get personalized questions and a technical problem. The candidate works outside this tool, then you upload their solution and process notes."],
-  ["Review the analysis", "See evidence on technical work, problem solving, role fit, collaboration, and what to follow up on."],
+const STEPS: { lines: [string, string]; text: string }[] = [
+  { lines: ["Set up", "the job"], text: "Add the public posting, the key priorities, and the hiring manager's context." },
+  { lines: ["Add the", "candidate"], text: "Upload a resume and choose the technical interview style." },
+  { lines: ["Run the", "interview"], text: "Get personalized questions and a technical problem. The candidate works outside this tool, then you upload their solution and process notes." },
+  { lines: ["Review the", "analysis"], text: "See evidence on technical work, problem solving, role fit, collaboration, and what to follow up on." },
 ];
 
 function Home() {
@@ -72,15 +72,22 @@ function PublicHome() {
         <Button asChild size="lg"><Link to="/auth">Get started</Link></Button>
         <DemoSignInButton size="lg" />
       </div>
-      <div className="mt-16 grid gap-px overflow-hidden rounded-lg border bg-border text-left md:grid-cols-4">
-        {STEPS.map(([title, text], i) => (
-          <div key={title} className="bg-card p-6">
-            <div className="font-mono text-xs text-muted-foreground">0{i + 1}</div>
-            <div className="mt-2 font-semibold">{title}</div>
-            <p className="mt-1 text-sm text-muted-foreground">{text}</p>
-          </div>
+      {/* items-start lets only the hovered card grow. min-h reserves room so the page does not jump. */}
+      <ol className="mt-16 grid min-h-80 grid-cols-2 items-start gap-4 md:grid-cols-4">
+        {STEPS.map((step, i) => (
+          <li key={step.text}
+            className="group rounded-xl border bg-card px-6 py-8 transition-all duration-200 hover:-translate-y-1 hover:border-primary hover:bg-accent hover:shadow-md">
+            <div className="font-mono text-sm text-muted-foreground transition-colors group-hover:text-primary">0{i + 1}</div>
+            <div className="mt-3 text-lg font-semibold leading-snug">{step.lines[0]}<br />{step.lines[1]}</div>
+            {/* The description is hidden until hover, then slides open under the title. */}
+            <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-200 group-hover:grid-rows-[1fr] group-hover:opacity-100">
+              <div className="overflow-hidden">
+                <p className="pt-3 text-sm text-muted-foreground">{step.text}</p>
+              </div>
+            </div>
+          </li>
         ))}
-      </div>
+      </ol>
     </section>
   );
 }
