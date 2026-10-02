@@ -1,35 +1,102 @@
-# FastAPI Contract for the Calibrate Frontend
+# API Contract
 
-The frontend reads `VITE_API_BASE_URL` (default `http://localhost:8000`). Set `VITE_USE_MOCKS=false` to use the real server instead of in-browser sample data. Exact field shapes live in `src/lib/types.ts`.
+One contract for the frontend and the FastAPI backend. It follows `Page_WorkFlow.md`.
+If the two disagree, the workflow doc wins and this file gets fixed.
+
+Exact field shapes live in `src/lib/types.ts`. The backend's Pydantic models must match them.
 
 ## Conventions
-- Auth: `Authorization: Bearer <access_token>` on every request except register/login. A `401` signs the user out.
-- Errors: return `{ "detail": "<short user-safe message>" }`. Messages over 200 chars are replaced by a generic message.
-- Enable CORS for the frontend origin.
-- Scope every resource to the caller's company.
 
-## Endpoints
+- Base URL comes from `VITE_API_BASE_URL`, default `http://localhost:8000`.
+- `VITE_USE_MOCKS=false` switches the frontend from mock data to the real server.
+- IDs are integers. Field names are snake_case. Timestamps are UTC ISO strings.
+- Errors return `{ "detail": "<short user-safe message>" }`. The UI replaces messages over 200 characters with a generic one.
+- CORS must allow the frontend origin, `http://localhost:8080`.
+- There is no sign-in on the server for the hackathon. The frontend's sign-in screen is local only and sends no auth requests.
+- The frontend never calls an LLM. Both LLM calls happen inside the two `generate` endpoints.
+- The two `generate` endpoints do not respond until the LLM finishes. Allow up to 90 seconds. The UI shows progress while it waits.
+
+## Page 1: Job Setup
+
 | Method | Path | Body | Returns |
 | --- | --- | --- | --- |
-| POST | `/auth/register` | `{name,email,password,role,company_name}` (role: `hiring_manager` or `recruiter`) | `AuthResponse` |
-| POST | `/auth/login` | `{email,password}` | `AuthResponse` |
-| GET | `/auth/me` | - | `User` |
-| GET | `/assessments` | - | `Assessment[]` |
-| POST | `/assessments` | `AssessmentInput` | `Assessment` (status `draft`) |
-| GET | `/assessments/{id}` | - | `Assessment` |
-| PATCH | `/assessments/{id}` | partial `AssessmentInput`, optional `status` | `Assessment` |
-| POST | `/assessments/{id}/resume` | multipart `file` (pdf/docx/txt) | `ResumeInsights` |
-| POST | `/assessments/{id}/specification/generate` | - | `Assessment` with `markdown_specification`, `questions`, status `specification_generated`, `spec_manually_edited=false` |
-| PUT | `/assessments/{id}/specification` | `{markdown}` | `Assessment` with `spec_manually_edited=true` |
-| GET | `/candidates` | - | `Candidate[]` |
-| GET | `/submissions?assessment_id=` | - | `Submission[]` |
-| POST | `/submissions` | multipart `assessment_id, candidate_name, candidate_identifier, question_id?, file` | `Submission` |
-| GET | `/submissions/{id}` | - | `Submission` |
-| GET | `/submissions/{id}/evaluation` | - | `Evaluation`. Return `status:"pending"` while running; the UI polls every 2s. `"failed"` for invalid LLM output. |
-| GET | `/evaluations` | - | `EvaluationListItem[]` |
+| POST | `/files/extract-text` | multipart `file` (pdf, txt, md) | `ExtractedText` |
+| POST | `/jobs` | `JobInput` | `Job` |
+| GET | `/jobs` | - | `Job[]` |
+| GET | `/jobs/{job_id}` | - | `Job` |
+| PATCH | `/jobs/{job_id}` | partial `JobInput` | `Job` |
 
-## Evaluation rules the UI relies on
-- `overall_score` should equal the sum of `question.overall_score * question.weight`, because the UI shows this breakdown.
-- Criterion scores are 0-10; question scores are 0-100.
-- `testing.tests_required` / `tests_provided` tell apart "did not provide tests" and "failed required tests".
-- `requirements_coverage[].result` is `met`, `partially_met`, or `not_met`.
+| Workflow field | API field |
+| --- | --- |
+| Role | `title` |
+| Public job posting: qualifications, description, preferences | `posting_text`, typed or filled from `/files/extract-text` |
+| Key priorities dropdown | `question_types`, must include `coding` |
+| Hiring manager context | `context` |
+
+## Page 2: Candidate Setup
+
+| Method | Path | Body | Returns |
+| --- | --- | --- | --- |
+| POST | `/files/extract-text` | multipart `file`, the resume | `ExtractedText` |
+| POST | `/jobs/{job_id}/candidates` | `CandidateInput` | `Candidate` |
+| GET | `/candidates` | - | `Candidate[]` |
+| GET | `/candidates/{candidate_id}` | - | `Candidate` |
+| PATCH | `/candidates/{candidate_id}` | partial `CandidateInput` | `Candidate` |
+
+## LLM Call #1: Generate the interview
+
+| Method | Path | Body | Returns |
+| --- | --- | --- | --- |
+| POST | `/candidates/{candidate_id}/interview/generate` | - | `Interview` |
+
+- Builds the Markdown context file from the job and the candidate, calls the LLM, stores the result, and returns it.
+- Calling it again replaces the stored interview.
+- `400` if the candidate has no `resume_text` or no `interview_style`.
+- `502` if the LLM fails or returns output that does not match the shape.
+
+## Page 3: Interview
+
+| Method | Path | Body | Returns |
+| --- | --- | --- | --- |
+| GET | `/candidates/{candidate_id}/interview` | - | `Interview`, or `404` if not generated |
+| POST | `/candidates/{candidate_id}/submission` | multipart `solution_files` (one or more), `process_files` (one or more) | `Submission` |
+| GET | `/candidates/{candidate_id}/submission` | - | `Submission`, or `404` if none |
+
+- Uploading again replaces the stored submission.
+- The server extracts the text of every file and adds it to the Markdown context file.
+
+## LLM Call #2: Analyze the candidate
+
+| Method | Path | Body | Returns |
+| --- | --- | --- | --- |
+| POST | `/candidates/{candidate_id}/analysis/generate` | - | `Analysis` |
+
+- Adds the submission to the existing Markdown context file, calls the LLM, stores the result, and returns it.
+- `400` if the candidate has no interview or no submission.
+- `502` if the LLM fails or returns output that does not match the shape.
+
+## Page 4: Candidate Analysis
+
+| Method | Path | Body | Returns |
+| --- | --- | --- | --- |
+| GET | `/candidates/{candidate_id}/analysis` | - | `Analysis`, or `404` if not generated |
+
+## Candidate status
+
+The server sets `status` on every `Candidate`. The dashboard and lists use it.
+
+| Status | Meaning |
+| --- | --- |
+| `setup` | Candidate created, no interview yet |
+| `interview_generated` | LLM Call #1 finished |
+| `submitted` | Solution and process uploaded |
+| `analyzed` | LLM Call #2 finished |
+
+## Backend changes this contract needs
+
+- Job: add `posting_text`.
+- Candidate: add `interview_style` and a read-only `status`.
+- Coding challenge: make `skeleton_code` optional, for the broad technical prompt.
+- New endpoints: text extraction, interview generate and read, submission upload and read, analysis generate and read.
+- Storage: generated questions go into the existing question tables, assigned to the candidate with their rationale. The analysis is stored whole as JSON.
+- The question, coding challenge, and assignment endpoints stay, but the frontend does not call them.
