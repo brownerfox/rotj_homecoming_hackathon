@@ -1,3 +1,7 @@
+// Field shapes for the API contract (API_CONTRACT.md). The backend's Pydantic
+// models must match these. Page behavior is defined in Page_WorkFlow.md.
+
+// ---- Local demo sign-in (no server auth for the hackathon) ----
 export type Role = "hiring_manager" | "recruiter";
 
 export interface User {
@@ -13,114 +17,130 @@ export interface AuthResponse {
   user: User;
 }
 
-export type CandidateLevel = "intern" | "entry" | "mid" | "senior";
-export type Language = "Python" | "Java" | "JavaScript" | "TypeScript" | "C++" | "C";
-export type Difficulty = "easy" | "medium" | "hard" | "custom";
-export type AssessmentStatus =
-  | "draft"
-  | "specification_generated"
-  | "ready_for_candidate"
-  | "candidate_submitted"
-  | "evaluation_complete";
+// ---- Shared enums ----
+export type QuestionType = "behavioral" | "situational" | "technical" | "system_design" | "coding";
+export type ProgrammingLanguage = "python" | "java" | "javascript" | "typescript" | "cpp" | "c";
+export type InterviewStyle = "broad_prompt" | "company_specific";
+export type CandidateStatus = "setup" | "interview_generated" | "submitted" | "analyzed";
 
-export interface ResumeInsights {
+// ---- File upload ----
+export interface ExtractedText {
   file_name: string;
-  technologies: string[];
-  relevant_experience: { experience: string; related_requirement: string }[];
+  text: string;
 }
 
-export interface AssessmentInput {
+// ---- Page 1: Job Setup ----
+export interface JobInput {
+  title: string; // Role
+  posting_text: string; // Public posting: qualifications, description, preferences
+  question_types: QuestionType[]; // Key priorities dropdown. Always includes "coding".
+  context: string; // Hiring manager context
+}
+
+export interface Job extends JobInput {
+  id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// ---- Page 2: Candidate Setup ----
+export interface CandidateInput {
   name: string;
-  company_name: string;
-  company_purpose: string;
-  engineering_focus: string[];
-  engineering_focus_other: string;
-  position: string;
-  candidate_level: CandidateLevel;
-  programming_language: Language;
-  technical_requirements: string[];
-  custom_technical_requirements: string;
-  general_programming_questions: boolean;
-  difficulty: Difficulty;
-  custom_difficulty: string;
-  custom_instructions: string;
-  candidate_name: string;
+  resume_text: string;
+  interview_style: InterviewStyle;
 }
 
-export interface Assessment extends AssessmentInput {
-  id: string;
-  status: AssessmentStatus;
-  markdown_specification: string | null;
-  spec_manually_edited: boolean;
-  resume: ResumeInsights | null;
-  questions: { id: string; title: string }[];
-  candidates_evaluated: number;
+export interface Candidate extends CandidateInput {
+  id: number;
+  job_id: number;
+  status: CandidateStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+// ---- LLM Call #1 output, shown on Page 3 ----
+export interface PersonalizedQuestion {
+  question_id: number;
+  type: QuestionType; // one of the job's selected question types
+  text: string;
+  rationale: string; // the resume item and the requirement or priority it targets
+}
+
+export interface TechnicalProblem {
+  question_id: number;
+  language: ProgrammingLanguage;
+  // Markdown, handed to the candidate unchanged. Includes how to run the tests and the
+  // documentation requirement.
+  problem_statement: string;
+  skeleton_code: string | null; // Starter code. Null for the broad technical prompt.
+  test_code: string; // Ready-to-run test cases
+  reference_solution: string; // For the hiring team and LLM Call #2 only. Never given to the candidate.
+  rationale: string; // Why this problem fits the job and the candidate
+}
+
+export interface Interview {
+  candidate_id: number;
+  candidate_name: string;
+  position: string; // The job's title
+  personalized_questions: PersonalizedQuestion[];
+  technical_problem: TechnicalProblem;
   created_at: string;
 }
 
-export interface Candidate {
-  id: string;
-  name: string;
-  identifier: string;
-  submissions: number;
-}
-
-export type SubmissionStatus = "uploaded" | "evaluating" | "evaluation_complete" | "failed";
-
+// ---- Page 3: Submission ----
 export interface Submission {
-  id: string;
-  assessment_id: string;
-  candidate_id: string;
-  candidate_name: string;
-  candidate_identifier: string;
-  question_id: string | null;
-  file_name: string;
-  status: SubmissionStatus;
+  candidate_id: number;
+  solution_file_names: string[];
+  process_file_names: string[];
   created_at: string;
 }
 
-export type CoverageResult = "met" | "partially_met" | "not_met";
-
-export interface CriterionScore {
-  score: number; // 0-10
-  explanation: string;
+// ---- LLM Call #2 output, shown on Page 4 ----
+export interface Finding {
+  assessment: string;
+  evidence: string[];
 }
 
-export interface QuestionEvaluation {
-  question_id: string;
-  title: string;
-  overall_score: number; // 0-100
-  weight: number;
-  summary: string;
-  correctness: CriterionScore;
-  code_quality: CriterionScore;
-  algorithmic_efficiency: CriterionScore;
-  edge_case_handling: CriterionScore;
-  testing: CriterionScore & { tests_required: boolean; tests_provided: boolean };
-  maintainability: CriterionScore;
-  requirements_coverage: CriterionScore;
-  detailed_explanation: string;
+export interface FollowUp {
+  observation: string;
+  evidence: string;
+  suggested_question: string;
 }
 
-export interface Evaluation {
-  submission_id: string;
-  status: "pending" | "complete" | "failed";
-  overall_score: number | null;
-  summary: string;
-  strengths: string[];
-  concerns: string[];
-  requirements_coverage_summary: string;
-  question_performance_summary: string;
-  requirements_coverage: { requirement: string; result: CoverageResult; note: string }[];
-  questions: QuestionEvaluation[];
-}
-
-export interface EvaluationListItem {
-  submission_id: string;
-  candidate_name: string;
-  assessment_name: string;
-  position: string;
-  overall_score: number | null;
-  status: SubmissionStatus;
+export interface Analysis {
+  candidate_id: number;
   created_at: string;
+  technical_analysis: {
+    solution_correctness: Finding;
+    code_quality: Finding;
+    documentation: Finding;
+    reusability: Finding;
+    maintainability: Finding;
+    technical_decisions: Finding;
+  };
+  problem_solving_analysis: {
+    implementation_plan: Finding;
+    planning_efficiency: Finding;
+    approach_to_problems: Finding;
+    plan_vs_final_changes: Finding;
+    decision_reasoning: Finding;
+  };
+  role_specific_insights: {
+    priority_findings: { priority: string; finding: string; evidence: string[] }[];
+    relevant_work_evidence: string[];
+    strengths: string[];
+    areas_to_investigate: string[];
+  };
+  collaboration_insights: {
+    understandability: Finding;
+    documentation_and_communication: Finding;
+    strengths: string[];
+    areas_to_investigate: string[];
+  };
+  follow_ups: {
+    unexplained_or_inconsistent_decisions: FollowUp[];
+    weak_reasoning_or_documentation: FollowUp[];
+    needs_more_evidence: FollowUp[];
+    ai_reliance_signals: FollowUp[];
+  };
 }

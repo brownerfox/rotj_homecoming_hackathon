@@ -41,12 +41,10 @@ Job + Key Details + Team Priorities → Resume → AI-Generated Interview → Ca
 
 ### Public job posting
 
-The user must be able to enter the posting by hand or upload it. It contains:
+The posting comes straight from the company's original public posting. The user pastes it or uploads it in one piece.
 
-- Role
-- Qualifications
-- Description
-- Preferences
+- Role, as its own field
+- One posting box, or an uploaded file, that covers qualifications, description, and preferences
 
 ### Key priorities dropdown
 
@@ -76,8 +74,9 @@ All Page 1 information is used as context for the interview and the final analys
 
 **Purpose:** Add the candidate and choose how they will be tested.
 
-### Resume
+### Candidate
 
+- Enter the candidate's name.
 - Upload the candidate's resume.
 
 ### Technical interview style

@@ -1,6 +1,6 @@
 import type {
-  Assessment, AssessmentInput, AuthResponse, Candidate, Evaluation, EvaluationListItem,
-  ResumeInsights, Role, Submission, User,
+  Analysis, AuthResponse, Candidate, CandidateInput, ExtractedText, Interview, Job, JobInput,
+  Role, Submission, User,
 } from "./types";
 import { mockApi } from "./mock-api";
 import { ApiError } from "./api-error";
@@ -18,7 +18,6 @@ export const tokenStore = {
   clear: () => window.localStorage.removeItem(TOKEN_KEY),
 };
 
-
 const FRIENDLY: Record<number, string> = {
   400: "The request could not be processed. Please check the information and try again.",
   401: "Your session has expired. Please sign in again.",
@@ -27,21 +26,21 @@ const FRIENDLY: Record<number, string> = {
   413: "The file is too large.",
   415: "This file type is not supported.",
   422: "Some fields are missing or invalid.",
+  502: "The AI service could not produce a result. Please try again.",
 };
 
 let onUnauthorized: (() => void) | null = null;
 export const setUnauthorizedHandler = (fn: () => void) => { onUnauthorized = fn; };
 
+// The server has no sign-in for the hackathon (API_CONTRACT.md), so no auth header is sent.
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  const token = tokenStore.get();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
   if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
   } catch {
-    throw new ApiError(0, "The assessment server could not be reached. Please try again shortly.");
+    throw new ApiError(0, "The server could not be reached. Please try again shortly.");
   }
   if (!res.ok) {
     if (res.status === 401) onUnauthorized?.();
@@ -59,44 +58,65 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 const json = (body: unknown) => JSON.stringify(body);
 
-const realApi = {
-  register: (d: { name: string; email: string; password: string; role: Role; company_name: string }) =>
-    request<AuthResponse>("/auth/register", { method: "POST", body: json(d) }),
-  login: (d: { email: string; password: string }) =>
-    request<AuthResponse>("/auth/login", { method: "POST", body: json(d) }),
-  me: () => request<User>("/auth/me"),
+// The interview, submission, and analysis do not exist until they are created.
+// The server answers 404 for those, which the pages treat as "not yet" instead of an error.
+async function orNull<T>(p: Promise<T>): Promise<T | null> {
+  try {
+    return await p;
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
+}
 
-  listAssessments: () => request<Assessment[]>("/assessments"),
-  getAssessment: (id: string) => request<Assessment>(`/assessments/${id}`),
-  createAssessment: (d: AssessmentInput) =>
-    request<Assessment>("/assessments", { method: "POST", body: json(d) }),
-  updateAssessment: (id: string, d: Partial<AssessmentInput> & { status?: Assessment["status"] }) =>
-    request<Assessment>(`/assessments/${id}`, { method: "PATCH", body: json(d) }),
-  uploadResume: (id: string, file: File) => {
+const realApi = {
+  // Sign-in is local only for the hackathon, so it uses the mock even with the real server on.
+  register: (d: { name: string; email: string; password: string; role: Role; company_name: string }): Promise<AuthResponse> =>
+    mockApi.register(d),
+  login: (d: { email: string; password: string }): Promise<AuthResponse> => mockApi.login(d),
+  me: (): Promise<User> => mockApi.me(),
+
+  // Pages 1 and 2: turn an uploaded posting or resume into text.
+  extractText: (file: File) => {
     const fd = new FormData();
     fd.append("file", file);
-    return request<ResumeInsights>(`/assessments/${id}/resume`, { method: "POST", body: fd });
+    return request<ExtractedText>("/files/extract-text", { method: "POST", body: fd });
   },
-  generateSpecification: (id: string) =>
-    request<Assessment>(`/assessments/${id}/specification/generate`, { method: "POST" }),
-  saveSpecification: (id: string, markdown: string) =>
-    request<Assessment>(`/assessments/${id}/specification`, { method: "PUT", body: json({ markdown }) }),
 
+  // Page 1: Job Setup
+  listJobs: () => request<Job[]>("/jobs"),
+  getJob: (id: number) => request<Job>(`/jobs/${id}`),
+  createJob: (d: JobInput) => request<Job>("/jobs", { method: "POST", body: json(d) }),
+  updateJob: (id: number, d: Partial<JobInput>) =>
+    request<Job>(`/jobs/${id}`, { method: "PATCH", body: json(d) }),
+
+  // Page 2: Candidate Setup
   listCandidates: () => request<Candidate[]>("/candidates"),
-  listSubmissions: (assessmentId?: string) =>
-    request<Submission[]>(`/submissions${assessmentId ? `?assessment_id=${assessmentId}` : ""}`),
-  createSubmission: (d: { assessment_id: string; candidate_name: string; candidate_identifier: string; question_id: string | null; file: File }) => {
+  getCandidate: (id: number) => request<Candidate>(`/candidates/${id}`),
+  createCandidate: (jobId: number, d: CandidateInput) =>
+    request<Candidate>(`/jobs/${jobId}/candidates`, { method: "POST", body: json(d) }),
+  updateCandidate: (id: number, d: Partial<CandidateInput>) =>
+    request<Candidate>(`/candidates/${id}`, { method: "PATCH", body: json(d) }),
+
+  // LLM Call #1 and Page 3
+  generateInterview: (candidateId: number) =>
+    request<Interview>(`/candidates/${candidateId}/interview/generate`, { method: "POST" }),
+  getInterview: (candidateId: number) =>
+    orNull(request<Interview>(`/candidates/${candidateId}/interview`)),
+  createSubmission: (candidateId: number, d: { solutionFiles: File[]; processFiles: File[] }) => {
     const fd = new FormData();
-    fd.append("assessment_id", d.assessment_id);
-    fd.append("candidate_name", d.candidate_name);
-    fd.append("candidate_identifier", d.candidate_identifier);
-    if (d.question_id) fd.append("question_id", d.question_id);
-    fd.append("file", d.file);
-    return request<Submission>("/submissions", { method: "POST", body: fd });
+    d.solutionFiles.forEach((f) => fd.append("solution_files", f));
+    d.processFiles.forEach((f) => fd.append("process_files", f));
+    return request<Submission>(`/candidates/${candidateId}/submission`, { method: "POST", body: fd });
   },
-  getSubmission: (id: string) => request<Submission>(`/submissions/${id}`),
-  getEvaluation: (submissionId: string) => request<Evaluation>(`/submissions/${submissionId}/evaluation`),
-  listEvaluations: () => request<EvaluationListItem[]>("/evaluations"),
+  getSubmission: (candidateId: number) =>
+    orNull(request<Submission>(`/candidates/${candidateId}/submission`)),
+
+  // LLM Call #2 and Page 4
+  generateAnalysis: (candidateId: number) =>
+    request<Analysis>(`/candidates/${candidateId}/analysis/generate`, { method: "POST" }),
+  getAnalysis: (candidateId: number) =>
+    orNull(request<Analysis>(`/candidates/${candidateId}/analysis`)),
 };
 
 export type Api = typeof realApi;
