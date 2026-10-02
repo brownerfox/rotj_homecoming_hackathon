@@ -1,13 +1,39 @@
 import type { CandidateStatus, InterviewStyle, QuestionType } from "./types";
 
-// Options for the Page 1 key priorities dropdown. Values match the backend's question types.
+// Options for the Page 1 key priorities dropdown. Coding is not listed because it is
+// always included: every interview has a technical problem.
 export const QUESTION_TYPES: { value: QuestionType; label: string; description: string }[] = [
+  { value: "debugging", label: "Debugging", description: "Finding and fixing a problem in existing code." },
   { value: "behavioral", label: "Behavioral", description: "Past experience: \"Tell me about a time you...\"" },
   { value: "situational", label: "Situational", description: "Hypothetical scenario: \"What would you do if...\"" },
-  { value: "technical", label: "Technical", description: "Conceptual knowledge, answered verbally." },
   { value: "system_design", label: "System design", description: "Open-ended architecture and trade-off discussion." },
-  { value: "coding", label: "Coding", description: "Hands-on technical problem. Always included." },
+  { value: "resume_deep_dive", label: "Resume deep dive", description: "Probing specific projects and claims on the resume." },
+  { value: "code_review", label: "Code review", description: "What the candidate looks for and says when reviewing code." },
+  { value: "data_modeling", label: "Data modeling", description: "Designing tables, schemas, and relationships." },
+  { value: "testing_strategy", label: "Testing strategy", description: "How the candidate would test a feature or system." },
+  { value: "motivation", label: "Motivation", description: "Why this role, this company, and this kind of work." },
+  { value: "leadership", label: "Leadership", description: "Leading people or projects, and taking ownership." },
 ];
+
+// The most questions one interview can have, counting the coding problem. There is no
+// separate limit for a single type. The page mentions this only once the user reaches it.
+export const MAX_TOTAL_QUESTIONS = 20;
+
+// Display names for every type a generated question can carry.
+export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
+  debugging: "Debugging",
+  behavioral: "Behavioral",
+  situational: "Situational",
+  system_design: "System design",
+  resume_deep_dive: "Resume deep dive",
+  code_review: "Code review",
+  data_modeling: "Data modeling",
+  testing_strategy: "Testing strategy",
+  motivation: "Motivation",
+  leadership: "Leadership",
+  technical: "Technical",
+  coding: "Coding",
+};
 
 // Where each candidate is in the flow, for the Page 0 list.
 // `page` is the page the candidate is waiting on.

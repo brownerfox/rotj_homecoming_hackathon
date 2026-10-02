@@ -18,7 +18,9 @@ export interface AuthResponse {
 }
 
 // ---- Shared enums ----
-export type QuestionType = "behavioral" | "situational" | "technical" | "system_design" | "coding";
+export type QuestionType =
+  | "debugging" | "behavioral" | "situational" | "system_design" | "resume_deep_dive" | "code_review"
+  | "data_modeling" | "testing_strategy" | "motivation" | "leadership" | "technical" | "coding";
 export type ProgrammingLanguage = "python" | "java" | "javascript" | "typescript" | "cpp" | "c";
 export type InterviewStyle = "broad_prompt" | "company_specific";
 export type CandidateStatus = "setup" | "interview_generated" | "submitted" | "analyzed";
@@ -34,6 +36,11 @@ export interface JobInput {
   title: string; // Role
   posting_text: string; // Public posting: qualifications, description, preferences
   question_types: QuestionType[]; // Key priorities dropdown. Always includes "coding".
+  // How many questions to generate for each selected type. Coding is not counted here,
+  // because it is always the one technical problem.
+  question_counts: Partial<Record<QuestionType, number>>;
+  // Questions the team already asks every candidate. May be empty. LLM Call #1 must not repeat them.
+  existing_questions: string;
   context: string; // Hiring manager context
 }
 

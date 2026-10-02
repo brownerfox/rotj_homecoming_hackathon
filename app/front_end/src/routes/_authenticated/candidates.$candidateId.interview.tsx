@@ -9,14 +9,14 @@ import remarkGfm from "remark-gfm";
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/lib/api";
-import { QUESTION_TYPES } from "@/lib/constants";
+import { QUESTION_TYPE_LABELS } from "@/lib/constants";
 import type { Interview, QuestionType, Submission } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { EmptyState, ErrorState, LoadingRows, PageHeader, formatDate } from "@/components/app-ui";
-import { Field, FlowSteps, Section } from "@/components/flow-ui";
+import { Field, FlowFooter, FlowSteps, Section } from "@/components/flow-ui";
 
 export const Route = createFileRoute("/_authenticated/candidates/$candidateId/interview")({
   head: () => ({
@@ -34,7 +34,7 @@ const SOLUTION_TYPES = [".py", ".java", ".js", ".ts", ".cpp", ".hpp", ".c", ".h"
 const PROCESS_TYPES = [".pdf", ".txt", ".md"];
 const MAX_MB = 10;
 
-const typeLabel = (t: QuestionType) => QUESTION_TYPES.find((x) => x.value === t)?.label ?? t;
+const typeLabel = (t: QuestionType) => QUESTION_TYPE_LABELS[t];
 
 // Returns a message for the first file that is the wrong type or too large, or null if all are fine.
 function fileProblem(files: File[], allowed: string[]): string | null {
@@ -78,6 +78,9 @@ function InterviewPage() {
             {generate.isPending ? "Generating interview..." : "Generate interview"}
           </Button>} />
         {generate.error && <div className="mt-4"><ErrorState message={`The interview could not be generated. ${errorMessage(generate.error)}`} /></div>}
+        <FlowFooter back={<Button asChild variant="outline">
+          <Link to="/jobs/$jobId/candidates/new" params={{ jobId: String(candidate.data.job_id) }} search={{ candidate: id }}>Back</Link>
+        </Button>} />
       </div>
     );
   }
@@ -93,7 +96,7 @@ function InterviewPage() {
         )} />
       <FlowSteps current={3} />
       <InterviewContent interview={interview.data} />
-      <SubmissionForm candidateId={id} existing={submission.data ?? null} analyzed={analyzed} />
+      <SubmissionForm candidateId={id} jobId={candidate.data.job_id} existing={submission.data ?? null} analyzed={analyzed} />
     </div>
   );
 }
@@ -179,7 +182,7 @@ function InterviewContent({ interview }: { interview: Interview }) {
   );
 }
 
-function SubmissionForm({ candidateId, existing, analyzed }: { candidateId: number; existing: Submission | null; analyzed: boolean }) {
+function SubmissionForm({ candidateId, jobId, existing, analyzed }: { candidateId: number; jobId: number; existing: Submission | null; analyzed: boolean }) {
   const [solutionFiles, setSolutionFiles] = useState<File[]>([]);
   const [processFiles, setProcessFiles] = useState<File[]>([]);
   const [phase, setPhase] = useState<"idle" | "uploading" | "analyzing">("idle");
@@ -241,14 +244,17 @@ function SubmissionForm({ candidateId, existing, analyzed }: { candidateId: numb
 
       {error && <div className="mb-4"><ErrorState message={error} /></div>}
 
-      <div className="flex flex-wrap items-center justify-end gap-4">
+      <FlowFooter back={
+        <Button asChild variant="outline">
+          <Link to="/jobs/$jobId/candidates/new" params={{ jobId: String(jobId) }} search={{ candidate: candidateId }}>Back</Link>
+        </Button>}>
         {phase === "analyzing" && (
           <span className="text-sm text-muted-foreground">Analyzing the submission. This can take up to 90 seconds.</span>
         )}
         <Button type="submit" size="lg" disabled={busy}>
           {phase === "uploading" ? "Uploading..." : phase === "analyzing" ? "Analyzing..." : analyzed ? "Analyze again" : "Analyze candidate"}
         </Button>
-      </div>
+      </FlowFooter>
     </form>
   );
 }

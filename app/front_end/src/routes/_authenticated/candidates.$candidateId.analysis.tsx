@@ -7,7 +7,7 @@ import { api, errorMessage } from "@/lib/api";
 import type { Analysis, Finding, FollowUp } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, LoadingRows, PageHeader, formatDate } from "@/components/app-ui";
-import { FlowSteps, Section } from "@/components/flow-ui";
+import { FlowFooter, FlowSteps, Section } from "@/components/flow-ui";
 
 export const Route = createFileRoute("/_authenticated/candidates/$candidateId/analysis")({
   head: () => ({
@@ -60,7 +60,7 @@ function AnalysisPage() {
 
   const backToInterview = (
     <Button asChild variant="outline">
-      <Link to="/candidates/$candidateId/interview" params={{ candidateId }}>Back to interview</Link>
+      <Link to="/candidates/$candidateId/interview" params={{ candidateId }}>Back</Link>
     </Button>
   );
   const a = analysis.data;
@@ -73,6 +73,7 @@ function AnalysisPage() {
         <EmptyState title="No analysis yet"
           description="Upload the candidate's solution and process on the interview page, then run the analysis."
           action={backToInterview} />
+        <FlowFooter back={backToInterview} />
       </div>
     );
   }
@@ -82,8 +83,7 @@ function AnalysisPage() {
   return (
     <div>
       <PageHeader title={candidate.data.name}
-        description={`Candidate analysis${interview.data ? ` for ${interview.data.position}` : ""}. Generated ${formatDate(a.created_at)}.`}
-        actions={backToInterview} />
+        description={`Candidate analysis${interview.data ? ` for ${interview.data.position}` : ""}. Generated ${formatDate(a.created_at)}.`} />
       <FlowSteps current={4} />
 
       <Section title="1. Technical analysis">
@@ -117,6 +117,8 @@ function AnalysisPage() {
           <FollowUpGroup key={key} label={label} note={note} items={a.follow_ups[key]} />
         ))}
       </Section>
+
+      <FlowFooter back={backToInterview} />
     </div>
   );
 }

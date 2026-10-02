@@ -30,7 +30,9 @@ Exact field shapes live in `src/lib/types.ts`. The backend's Pydantic models mus
 | --- | --- |
 | Role | `title` |
 | Public job posting: qualifications, description, preferences | `posting_text`, typed or filled from `/files/extract-text` |
-| Key priorities dropdown | `question_types`, must include `coding` |
+| Key priorities dropdown | `question_types`: any of `debugging`, `behavioral`, `situational`, `system_design`, `resume_deep_dive`, `code_review`, `data_modeling`, `testing_strategy`, `motivation`, `leadership`. The frontend always adds `coding`. |
+| Quantity for each type | `question_counts`: an object from type to a number, at least 1, for every selected type except `coding`. All quantities plus the one coding problem total at most 20. |
+| Existing interview questions | `existing_questions`, optional text, typed or filled from `/files/extract-text` |
 | Hiring manager context | `context` |
 
 ## Page 2: Candidate Setup
@@ -43,6 +45,8 @@ Exact field shapes live in `src/lib/types.ts`. The backend's Pydantic models mus
 | GET | `/candidates/{candidate_id}` | - | `Candidate` |
 | PATCH | `/candidates/{candidate_id}` | partial `CandidateInput` | `Candidate` |
 
+The frontend reads `name` from the resume text or file name. The user types it only if it cannot be read.
+
 ## LLM Call #1: Generate the interview
 
 | Method | Path | Body | Returns |
@@ -50,6 +54,8 @@ Exact field shapes live in `src/lib/types.ts`. The backend's Pydantic models mus
 | POST | `/candidates/{candidate_id}/interview/generate` | - | `Interview` |
 
 - Builds the Markdown context file from the job and the candidate, calls the LLM, stores the result, and returns it.
+- The context file includes the job's `existing_questions`. The prompt must tell the LLM not to repeat them.
+- The LLM must return exactly `question_counts[type]` personalized questions for each selected type.
 - Calling it again replaces the stored interview.
 - `400` if the candidate has no `resume_text` or no `interview_style`.
 - `502` if the LLM fails or returns output that does not match the shape.
@@ -94,7 +100,9 @@ The server sets `status` on every `Candidate`. The dashboard and lists use it.
 
 ## Backend changes this contract needs
 
-- Job: add `posting_text`.
+- Job: add `posting_text` and `existing_questions`.
+- Question types: accept `debugging`, `resume_deep_dive`, `code_review`, `data_modeling`, `testing_strategy`, `motivation`, and `leadership`.
+- Job: add `question_counts`.
 - Candidate: add `interview_style` and a read-only `status`.
 - Coding challenge: make `skeleton_code` optional, for the broad technical prompt.
 - New endpoints: text extraction, interview generate and read, submission upload and read, analysis generate and read.

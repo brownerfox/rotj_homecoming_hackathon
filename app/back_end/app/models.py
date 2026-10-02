@@ -10,18 +10,32 @@ from app.database import Base
 class QuestionType(StrEnum):
     """The fixed set of question formats. Add a member here to add a type; nothing else changes."""
 
+    DEBUGGING = "debugging"
     BEHAVIORAL = "behavioral"
     SITUATIONAL = "situational"
     TECHNICAL = "technical"
     SYSTEM_DESIGN = "system_design"
+    RESUME_DEEP_DIVE = "resume_deep_dive"
+    CODE_REVIEW = "code_review"
+    DATA_MODELING = "data_modeling"
+    TESTING_STRATEGY = "testing_strategy"
+    MOTIVATION = "motivation"
+    LEADERSHIP = "leadership"
     CODING = "coding"
 
 
 QUESTION_TYPE_DESCRIPTIONS: dict[QuestionType, str] = {
+    QuestionType.DEBUGGING: "Finding and fixing a problem in existing code.",
     QuestionType.BEHAVIORAL: "Past experience: 'Tell me about a time you...'",
     QuestionType.SITUATIONAL: "Hypothetical scenario: 'What would you do if...'",
     QuestionType.TECHNICAL: "Conceptual knowledge, answered verbally.",
     QuestionType.SYSTEM_DESIGN: "Open-ended architecture and trade-off discussion.",
+    QuestionType.RESUME_DEEP_DIVE: "Probing specific projects and claims on the resume.",
+    QuestionType.CODE_REVIEW: "What the candidate looks for and says when reviewing code.",
+    QuestionType.DATA_MODELING: "Designing tables, schemas, and relationships.",
+    QuestionType.TESTING_STRATEGY: "How the candidate would test a feature or system.",
+    QuestionType.MOTIVATION: "Why this role, this company, and this kind of work.",
+    QuestionType.LEADERSHIP: "Leading people or projects, and taking ownership.",
     QuestionType.CODING: "Hands-on problem. The only type that can have a coding challenge.",
 }
 

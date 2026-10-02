@@ -32,7 +32,7 @@ export function Section({ title, description, children }: { title: string; descr
   return (
     <Card className="mb-4">
       <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
+        <CardTitle className="text-lg">{title}</CardTitle>
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent className="space-y-5">{children}</CardContent>
@@ -40,12 +40,26 @@ export function Section({ title, description, children }: { title: string; descr
   );
 }
 
-export function Field({ label, hint, required, children }: { label: string; hint?: string; required?: boolean; children: ReactNode }) {
+// `note` is short text shown beside the label, after the required star.
+export function Field({ label, note, hint, required, children }: { label: string; note?: string; hint?: string; required?: boolean; children: ReactNode }) {
   return (
     <div className="space-y-2">
-      <Label>{label}{required && <span className="ml-0.5 text-destructive">*</span>}</Label>
+      <Label className="text-base">
+        {label}{required && <span className="ml-0.5 text-destructive">*</span>}
+        {note && <span className="ml-2 text-sm font-normal text-muted-foreground">{note}</span>}
+      </Label>
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       {children}
+    </div>
+  );
+}
+
+// Bottom row for Pages 1 to 4: Back on the left, the page's main action on the right.
+export function FlowFooter({ back, children }: { back: ReactNode; children?: ReactNode }) {
+  return (
+    <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+      {back}
+      <div className="flex flex-wrap items-center gap-4">{children}</div>
     </div>
   );
 }
