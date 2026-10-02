@@ -1,6 +1,8 @@
 // Mock implementation of the FastAPI contract so the full demo works before the
 // real server exists. Data is kept in the browser's localStorage.
 import { ApiError } from "./api-error";
+import { allRequirements, generateQuestions } from "./question-generator";
+import { analyzeResumeText } from "./resume-analyzer";
 import { buildSpecification } from "./spec-template";
 import type {
   Assessment, AssessmentInput, AuthResponse, Candidate, CoverageResult, Evaluation, EvaluationListItem,
@@ -19,6 +21,7 @@ interface Db {
 const KEY = "tap_mock_db_v1";
 const delay = (ms = 350) => new Promise((r) => setTimeout(r, ms));
 const uid = () => Math.random().toString(36).slice(2, 10);
+const toQuestionRefs = (a: Assessment) => generateQuestions(a).map((q) => ({ id: q.id, title: q.title }));
 
 function seed(): Db {
   const created = new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString();
@@ -50,13 +53,11 @@ function seed(): Db {
         { experience: "Designed REST endpoints with FastAPI", related_requirement: "REST APIs" },
       ],
     },
-    questions: [
-      { id: "Q1", title: "Paginated shipment lookup" },
-      { id: "Q2", title: "Cached aggregate endpoint" },
-    ],
+    questions: [],
     candidates_evaluated: 1,
     created_at: created,
   };
+  a.questions = toQuestionRefs(a);
   a.markdown_specification = buildSpecification(a);
   const sub: Submission = {
     id: "s1", assessment_id: "a1", candidate_id: "c1", candidate_name: "Jordan Patel",
@@ -211,14 +212,18 @@ export const mockApi = {
     const db = load();
     const a = findAssessment(db, id);
     const known = ["Python", "PostgreSQL", "Docker", "React", "FastAPI", "Redis", "AWS", "Vector database"];
-    const insights: ResumeInsights = {
-      file_name: file.name,
-      technologies: known.slice(0, 5),
-      relevant_experience: a.technical_requirements.slice(0, 3).map((r) => ({
-        experience: `Prior project experience related to ${r.toLowerCase()} (sample data)`,
-        related_requirement: r,
-      })),
-    };
+    // Plain-text resumes are really analyzed; pdf/docx need the server's parser, so they get sample data.
+    const text = file.name.toLowerCase().endsWith(".txt") ? await file.text() : "";
+    const insights: ResumeInsights = text.trim()
+      ? analyzeResumeText(file.name, text, allRequirements(a))
+      : {
+          file_name: file.name,
+          technologies: known.slice(0, 5),
+          relevant_experience: a.technical_requirements.slice(0, 3).map((r) => ({
+            experience: `Prior project experience related to ${r.toLowerCase()} (sample data)`,
+            related_requirement: r,
+          })),
+        };
     a.resume = insights;
     save(db);
     return insights;
@@ -227,10 +232,10 @@ export const mockApi = {
     await delay(1200);
     const db = load();
     const a = findAssessment(db, id);
+    a.questions = toQuestionRefs(a);
     a.markdown_specification = buildSpecification(a);
     a.spec_manually_edited = false;
     a.status = "specification_generated";
-    if (!a.questions.length) a.questions = [{ id: "Q1", title: "Question 1" }, { id: "Q2", title: "Question 2" }];
     save(db);
     return a;
   },
