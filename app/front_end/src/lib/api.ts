@@ -75,6 +75,7 @@ const realApi = {
     mockApi.register(d),
   login: (d: { email: string; password: string }): Promise<AuthResponse> => mockApi.login(d),
   me: (): Promise<User> => mockApi.me(),
+  demoLogin: (): Promise<AuthResponse> => mockApi.demoLogin(),
 
   // Pages 1 and 2: turn an uploaded posting or resume into text.
   extractText: (file: File) => {

@@ -559,6 +559,20 @@ export const mockApi = {
     save(db);
     return { access_token: `mock.${u.id}`, user: publicUser(u) };
   },
+  // Demo mode only: signs in as a built-in sample user, so no account is needed.
+  async demoLogin(): Promise<AuthResponse> {
+    await delay(150);
+    const db = load();
+    let u = db.users.find((x) => x.id === "demo");
+    if (!u) {
+      // The password is random and never shown, so this user cannot be reached through the form.
+      u = { id: "demo", name: "Demo User", email: "demo@calibrate.test", role: "hiring_manager", company_name: "Northwind Analytics", password: uid() };
+      db.users.push(u);
+    }
+    db.currentUserId = u.id;
+    save(db);
+    return { access_token: `mock.${u.id}`, user: publicUser(u) };
+  },
   async me(): Promise<User> {
     await delay(100);
     return publicUser(requireUser(load()));
