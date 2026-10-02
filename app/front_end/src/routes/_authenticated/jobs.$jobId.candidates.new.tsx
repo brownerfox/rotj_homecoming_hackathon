@@ -15,9 +15,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/_authenticated/jobs/$jobId/candidates/new")({
   head: () => ({
     meta: [
-      { title: "Candidate Setup — Calibrate" },
+      { title: "Candidate Setup — Fit2Hire" },
       { name: "description", content: "Add the candidate's resume and choose the technical interview style." },
-      { property: "og:title", content: "Candidate Setup — Calibrate" },
+      { property: "og:title", content: "Candidate Setup — Fit2Hire" },
       { property: "og:description", content: "Add the candidate's resume and choose the technical interview style." },
     ],
   }),

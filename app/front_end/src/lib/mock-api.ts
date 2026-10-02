@@ -566,7 +566,7 @@ export const mockApi = {
     let u = db.users.find((x) => x.id === "demo");
     if (!u) {
       // The password is random and never shown, so this user cannot be reached through the form.
-      u = { id: "demo", name: "Demo User", email: "demo@calibrate.test", role: "hiring_manager", company_name: "Northwind Analytics", password: uid() };
+      u = { id: "demo", name: "Demo User", email: "demo@fit2hire.test", role: "hiring_manager", company_name: "Northwind Analytics", password: uid() };
       db.users.push(u);
     }
     db.currentUserId = u.id;

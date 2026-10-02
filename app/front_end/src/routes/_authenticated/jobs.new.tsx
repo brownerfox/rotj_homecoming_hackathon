@@ -19,9 +19,9 @@ import { Field, FlowSteps, Section } from "@/components/flow-ui";
 export const Route = createFileRoute("/_authenticated/jobs/new")({
   head: () => ({
     meta: [
-      { title: "Job Setup — Calibrate" },
+      { title: "Job Setup — Fit2Hire" },
       { name: "description", content: "Enter the public job posting, the key priorities, and the hiring manager's context." },
-      { property: "og:title", content: "Job Setup — Calibrate" },
+      { property: "og:title", content: "Job Setup — Fit2Hire" },
       { property: "og:description", content: "Enter the public job posting, the key priorities, and the hiring manager's context." },
     ],
   }),

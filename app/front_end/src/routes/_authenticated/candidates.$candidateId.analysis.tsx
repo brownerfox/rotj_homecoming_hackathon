@@ -12,9 +12,9 @@ import { FlowSteps, Section } from "@/components/flow-ui";
 export const Route = createFileRoute("/_authenticated/candidates/$candidateId/analysis")({
   head: () => ({
     meta: [
-      { title: "Candidate Analysis — Calibrate" },
+      { title: "Candidate Analysis — Fit2Hire" },
       { name: "description", content: "Evidence-based insights on how the candidate worked through the interview." },
-      { property: "og:title", content: "Candidate Analysis — Calibrate" },
+      { property: "og:title", content: "Candidate Analysis — Fit2Hire" },
       { property: "og:description", content: "Evidence-based insights on how the candidate worked through the interview." },
     ],
   }),

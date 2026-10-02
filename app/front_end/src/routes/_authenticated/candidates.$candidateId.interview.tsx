@@ -21,9 +21,9 @@ import { Field, FlowSteps, Section } from "@/components/flow-ui";
 export const Route = createFileRoute("/_authenticated/candidates/$candidateId/interview")({
   head: () => ({
     meta: [
-      { title: "Interview — Calibrate" },
+      { title: "Interview — Fit2Hire" },
       { name: "description", content: "The personalized interview for this candidate, and the upload for their finished work." },
-      { property: "og:title", content: "Interview — Calibrate" },
+      { property: "og:title", content: "Interview — Fit2Hire" },
       { property: "og:description", content: "The personalized interview for this candidate, and the upload for their finished work." },
     ],
   }),
