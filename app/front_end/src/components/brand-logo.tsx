@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 type BrandLogoProps = {
   variant?: "mark" | "lockup";
-  to?: "/" | "/auth";
+  to?: "/" | "/auth" | "/jobs/new";
   inverted?: boolean;
   className?: string;
   imgClassName?: string;

@@ -40,14 +40,16 @@ function Home() {
       <header className="border-b bg-card">
         <div className="relative mx-auto flex h-16 max-w-6xl items-center justify-center px-6">
           <BrandLogo to="/" imgClassName="h-8" />
-          {user ? (
-            <div className="absolute right-6 flex items-center gap-3 text-sm">
-              <span className="text-muted-foreground">{user.name}</span>
-              <Button variant="outline" onClick={signOut}>Sign out</Button>
-            </div>
-          ) : !loading && (
-            <Button asChild variant="outline" className="absolute right-6"><Link to="/auth">Sign in</Link></Button>
-          )}
+          <div className="absolute right-6">
+            {user ? (
+              <div className="flex items-center gap-3 text-sm">
+                <span className="hidden text-muted-foreground sm:inline">{user.name}</span>
+                <Button variant="outline" onClick={signOut}>Sign out</Button>
+              </div>
+            ) : !loading ? (
+              <Button asChild variant="outline"><Link to="/auth">Sign in</Link></Button>
+            ) : null}
+          </div>
         </div>
       </header>
       {loading ? <div className="mx-auto max-w-6xl px-6 py-20"><LoadingRows /></div>
@@ -61,12 +63,13 @@ function PublicHome() {
   return (
     <section className="mx-auto max-w-6xl px-6 py-20 text-center">
       <BrandLogo variant="lockup" imgClassName="mx-auto h-28 md:h-36" className="mb-8 justify-center" />
+      <p className="text-sm font-medium uppercase tracking-wider text-primary">For recruiters and hiring managers</p>
       <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-semibold leading-tight tracking-tight md:text-5xl">
         Interviews built around the real job and the real candidate.
       </h1>
       <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
-        Give Fit2Hire the job posting, what the hiring manager cares about, and a resume. It writes a personalized
-        interview, then analyzes how the candidate worked through it.
+        Give us the job posting, what the hiring manager cares about, and a resume. We write a personalized
+        interview, then analyze how the candidate worked through it.
       </p>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Button asChild size="lg"><Link to="/auth">Get started</Link></Button>
