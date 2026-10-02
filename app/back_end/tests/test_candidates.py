@@ -41,12 +41,18 @@ def test_bulk_upload_creates_and_generates_each_candidate(client, job, fake_clau
 
 def test_request_caches_job_context_and_keeps_resume_separate(client, job, fake_claude):
     client.post(f"/jobs/{job['id']}/existing-questions", files=pdf_files(("old.pdf", make_pdf("Why this company"))))
+    client.patch(f"/jobs/{job['id']}", json={"existing_questions": "What is your favorite data structure?"})
     upload(client, job, ("jane.pdf", make_pdf("Jane Doe resume")))
 
     [request] = fake_claude.requests
     instructions, job_context = request["system"]
     assert "cache_control" not in instructions and job_context["cache_control"] == {"type": "ephemeral"}
-    for expected in ("Backend Engineer", "Owns the public REST API.", "Python, SQL", "parsing log files", "Why this company"):
+    expected_parts = (
+        "Backend Engineer", "Owns the public REST API.", "Python, SQL", "parsing log files",
+        "Why this company",  # from the uploaded PDF
+        "What is your favorite data structure?",  # typed on the job
+    )
+    for expected in expected_parts:
         assert expected in job_context["text"]
     assert "Jane Doe resume" in request["messages"][0]["content"]
     assert "Jane Doe" not in job_context["text"]  # the cached part is identical for every resume

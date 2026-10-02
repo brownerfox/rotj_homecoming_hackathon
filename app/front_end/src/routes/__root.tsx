@@ -81,7 +81,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Fit2Hire — Personalized Technical Exams" },
-      { name: "description", content: "Personalized interviews and evidence-based candidate analysis for recruiters and hiring managers." },
+      { name: "description", content: "Personalized interviews and coding challenges for recruiters and hiring managers." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

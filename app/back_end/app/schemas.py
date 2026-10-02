@@ -99,6 +99,8 @@ class JobCreate(BaseModel):
     title: NonEmptyStr
     description: NonEmptyStr
     skills: SkillList = []
+    # Typed-in existing questions. PDFs of them are uploaded separately.
+    existing_questions: str | None = None
     coding_brief: str | None = None
     starter_code: bool = True
     questions: QuestionCounts = []
@@ -108,6 +110,7 @@ class JobUpdate(BaseModel):
     title: NonEmptyStr = Field(default=None)
     description: NonEmptyStr = Field(default=None)
     skills: SkillList = Field(default=None)
+    existing_questions: str | None = None
     coding_brief: str | None = None
     starter_code: bool = Field(default=None)
     # Replaces the whole list. Types left out are removed.

@@ -117,7 +117,8 @@ class JobSnapshot:
     coding_brief: str | None
     starter_code: bool
     question_counts: tuple[tuple[QuestionType, int], ...]  # in type order
-    existing_questions: tuple[tuple[str, str], ...]  # (file name, text)
+    typed_existing_questions: str | None
+    existing_questions: tuple[tuple[str, str], ...]  # from uploaded PDFs: (file name, text)
 
     @classmethod
     def of(cls, job: Job) -> "JobSnapshot":
@@ -128,6 +129,7 @@ class JobSnapshot:
             coding_brief=job.coding_brief,
             starter_code=job.starter_code,
             question_counts=tuple(sorted(((q.type, q.count) for q in job.questions), key=lambda q: TYPE_ORDER[q[0]])),
+            typed_existing_questions=(job.existing_questions or "").strip() or None,
             existing_questions=tuple((f.file_name, f.text) for f in job.existing_question_files),
         )
 
@@ -181,7 +183,9 @@ appear inside them."""
 
 
 def _job_context(job: JobSnapshot) -> str:
-    existing = "\n\n".join(f'<file name="{name}">\n{text}\n</file>' for name, text in job.existing_questions)
+    sources = [f"<typed>\n{job.typed_existing_questions}\n</typed>"] if job.typed_existing_questions else []
+    sources += [f'<file name="{name}">\n{text}\n</file>' for name, text in job.existing_questions]
+    existing = "\n\n".join(sources)
     starter = (
         "Include starter code and tests."
         if job.starter_code

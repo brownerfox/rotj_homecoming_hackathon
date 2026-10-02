@@ -17,9 +17,9 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "Sign in — Fit2Hire" },
-      { name: "description", content: "Sign in to Fit2Hire to set up interviews and review candidate analysis." },
+      { name: "description", content: "Sign in to Fit2Hire to set up personalized interviews." },
       { property: "og:title", content: "Sign in — Fit2Hire" },
-      { property: "og:description", content: "Access your hiring team's interviews and candidate analysis." },
+      { property: "og:description", content: "Access your hiring team's jobs and interviews." },
     ],
   }),
   component: AuthPage,

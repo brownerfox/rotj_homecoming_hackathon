@@ -37,7 +37,8 @@ are created on startup but never altered.
 
 1. A user creates a job: title, description, skills, how many questions of each type, an optional
    coding brief, and whether coding challenges come with starter code.
-2. Optionally, they upload PDFs of questions the team already asks. Generated questions avoid repeating them.
+2. Optionally, they type the questions the team already asks, upload PDFs of them, or both.
+   Generated questions avoid repeating them.
 3. They upload resume PDFs (any number at once). Each becomes a candidate right away with status
    `pending`, and the request returns.
 4. In the background, a few at a time, Claude reads each resume against the job and returns the
@@ -51,8 +52,9 @@ Rules that follow from this:
   editing the job, its question counts, or its existing-question files never changes candidates who
   already have questions. A batch uses the job's settings from the moment it was uploaded.
 - **No starter code means no tests**, both in what Claude generates and when editing by hand.
-- **Questions are ordered by type**, in the order `QuestionType` declares them
-  (behavioral, situational, technical, debugging, system design).
+- **Questions are ordered by type**, in the order `QuestionType` declares them: debugging,
+  behavioral, situational, technical, system design, resume deep dive, code review, data modeling,
+  testing strategy, motivation, leadership. The frontend's list in `src/lib/constants.ts` mirrors it.
 - **PDFs become plain text.** Text is extracted locally. A scanned PDF with no text layer is
   transcribed by Claude instead (a few seconds, a small cost).
 - **A restart interrupts generation.** `fastapi dev` restarts on every file save, and anything
@@ -87,6 +89,7 @@ erDiagram
         string title
         text description
         json skills "free text"
+        text existing_questions "nullable, typed in"
         text coding_brief "nullable"
         bool starter_code
     }
@@ -180,11 +183,12 @@ tests/            each test gets a fresh in-memory database and a fake Claude
 - **SQLite by default**, with foreign keys switched on (SQLite ignores them otherwise). Moving to
   Postgres is a `DATABASE_URL` change.
 
+The frontend calls these endpoints through `app/front_end/src/lib/api.ts`. The shared contract is
+`app/front_end/API_CONTRACT.md`.
+
 ## Not built yet
 
-- **Sign-in and user profiles.** The plan is to follow `app/front_end/API_CONTRACT.md`.
+- **Server sign-in.** Sign-in is local to the frontend for the hackathon.
 - **Regenerating a candidate who already has questions.** Only failed candidates can be retried.
 - **Other languages for coding challenges.** `ProgrammingLanguage` has only Python.
 - **Uploading the candidate's finished work, and the AI analysis of it.**
-- **Matching the current frontend.** Its screens and `API_CONTRACT.md` describe the earlier
-  assessment flow.

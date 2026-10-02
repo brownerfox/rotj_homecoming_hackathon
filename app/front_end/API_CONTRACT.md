@@ -1,110 +1,95 @@
 # API Contract
 
-One contract for the frontend and the FastAPI backend. It follows `Page_WorkFlow.md`.
-If the two disagree, the workflow doc wins and this file gets fixed.
+One contract for the frontend and the FastAPI backend (`app/back_end`). It describes the API as built.
 
-Exact field shapes live in `src/lib/types.ts`. The backend's Pydantic models must match them.
+Exact field shapes live in `src/lib/types.ts`, which mirrors the backend's Pydantic models in
+`app/back_end/app/schemas.py`. Change both together. `src/lib/mock-api.ts` implements the same
+contract in the browser for demo mode.
+
+> `Page_WorkFlow.md` has not been updated for the decisions below. Where the two disagree, this
+> file and the code are current. In particular: resumes are uploaded in bulk, the starter-code
+> choice is made once per job rather than per candidate, there is no separate text-extraction
+> endpoint, and the submission upload and candidate analysis (Page 4, LLM Call #2) are not built yet.
 
 ## Conventions
 
 - Base URL comes from `VITE_API_BASE_URL`, default `http://localhost:8000`.
 - `VITE_USE_MOCKS=false` switches the frontend from mock data to the real server.
-- IDs are integers. Field names are snake_case. Timestamps are UTC ISO strings.
-- Errors return `{ "detail": "<short user-safe message>" }`. The UI replaces messages over 200 characters with a generic one.
-- CORS must allow the frontend origin, `http://localhost:8080`.
-- There is no sign-in on the server for the hackathon. The frontend's sign-in screen is local only and sends no auth requests.
-- The frontend never calls an LLM. Both LLM calls happen inside the two `generate` endpoints.
-- The two `generate` endpoints do not respond until the LLM finishes. Allow up to 90 seconds. The UI shows progress while it waits.
+- IDs are integers. Field names are snake_case. Timestamps are UTC ISO strings ending in `Z`.
+- Errors return `{ "detail": "<short user-safe message>" }`. Validation errors (422) return FastAPI's
+  list form, which the UI replaces with a generic message.
+- CORS allows the frontend origin, `http://localhost:8080`.
+- There is no sign-in on the server for the hackathon. The frontend's sign-in screen is local only.
+- The frontend never calls an LLM. Generation runs on the server, in the background.
+- PATCH changes only the fields sent. `null` clears an optional field and is rejected for a required one.
+
+## Question types
+
+`debugging`, `behavioral`, `situational`, `technical`, `system_design`, `resume_deep_dive`,
+`code_review`, `data_modeling`, `testing_strategy`, `motivation`, `leadership`. That is also the display
+order: questions are always listed by type, in this order. The coding challenge is not a type; every
+candidate gets one. `GET /question-types` returns the list with descriptions.
 
 ## Page 1: Job Setup
 
 | Method | Path | Body | Returns |
 | --- | --- | --- | --- |
-| POST | `/files/extract-text` | multipart `file` (pdf, txt, md) | `ExtractedText` |
-| POST | `/jobs` | `JobInput` | `Job` |
+| POST | `/jobs` | `JobInput` | `Job` (201) |
 | GET | `/jobs` | - | `Job[]` |
 | GET | `/jobs/{job_id}` | - | `Job` |
 | PATCH | `/jobs/{job_id}` | partial `JobInput` | `Job` |
+| DELETE | `/jobs/{job_id}` | - | 204. Deletes its candidates too |
+| GET | `/jobs/{job_id}/existing-questions` | - | `ExistingQuestionFile[]` |
+| POST | `/jobs/{job_id}/existing-questions` | multipart `files` (PDFs) | `ExistingQuestionFile[]` (201) |
+| DELETE | `/jobs/{job_id}/existing-questions/{file_id}` | - | 204 |
 
-| Workflow field | API field |
+- `questions` is a list of `{type, count}`: one entry per type, each count 1 to 10. A PATCH replaces
+  the whole list. It is returned in type order.
+- Existing interview questions are optional, and can be typed (`existing_questions`), uploaded as
+  PDFs, or both. Generated questions avoid repeating any of them.
+- `coding_brief` is the hiring manager's notes on the coding challenge. The challenge is based mainly on it.
+- `starter_code` decides whether coding challenges come with starter code and tests. No starter code
+  means no tests.
+- Editing a job only affects resumes uploaded afterwards.
+
+## Page 2: Candidates
+
+| Method | Path | Body | Returns |
+| --- | --- | --- | --- |
+| POST | `/jobs/{job_id}/candidates` | multipart `files` (resume PDFs, any number) | `Candidate[]` (202) |
+| GET | `/jobs/{job_id}/candidates` | - | `Candidate[]` |
+| GET | `/candidates` | - | `Candidate[]`, all jobs |
+| POST | `/candidates/{candidate_id}/retry` | - | `Candidate` (202). Failed candidates only, else 409 |
+| DELETE | `/candidates/{candidate_id}` | - | 204 |
+
+- Each resume becomes a candidate with status `pending`, and the request returns. The server then
+  reads each resume and generates its questions and coding challenge in the background, a few at a time.
+- The UI polls the candidate list every 2 seconds while any candidate is `pending` or `generating`.
+- `name` is read from the resume during generation, so it is `null` until then (and if the resume
+  has none). The UI shows `resume_file_name` in its place.
+- Uploads are PDFs up to 10 MB each. One bad file rejects the whole upload (400) before anything is created.
+
+| Status | Meaning |
 | --- | --- |
-| Role | `title` |
-| Public job posting: qualifications, description, preferences | `posting_text`, typed or filled from `/files/extract-text` |
-| Key priorities dropdown | `question_types`: any of `debugging`, `behavioral`, `situational`, `system_design`, `resume_deep_dive`, `code_review`, `data_modeling`, `testing_strategy`, `motivation`, `leadership`. The frontend always adds `coding`. |
-| Quantity for each type | `question_counts`: an object from type to a number, at least 1, for every selected type except `coding`. All quantities plus the one coding problem total at most 20. |
-| Existing interview questions | `existing_questions`, optional text, typed or filled from `/files/extract-text` |
-| Hiring manager context | `context` |
-
-## Page 2: Candidate Setup
-
-| Method | Path | Body | Returns |
-| --- | --- | --- | --- |
-| POST | `/files/extract-text` | multipart `file`, the resume | `ExtractedText` |
-| POST | `/jobs/{job_id}/candidates` | `CandidateInput` | `Candidate` |
-| GET | `/candidates` | - | `Candidate[]` |
-| GET | `/candidates/{candidate_id}` | - | `Candidate` |
-| PATCH | `/candidates/{candidate_id}` | partial `CandidateInput` | `Candidate` |
-
-The frontend reads `name` from the resume text or file name. The user types it only if it cannot be read.
-
-## LLM Call #1: Generate the interview
-
-| Method | Path | Body | Returns |
-| --- | --- | --- | --- |
-| POST | `/candidates/{candidate_id}/interview/generate` | - | `Interview` |
-
-- Builds the Markdown context file from the job and the candidate, calls the LLM, stores the result, and returns it.
-- The context file includes the job's `existing_questions`. The prompt must tell the LLM not to repeat them.
-- The LLM must return exactly `question_counts[type]` personalized questions for each selected type.
-- Calling it again replaces the stored interview.
-- `400` if the candidate has no `resume_text` or no `interview_style`.
-- `502` if the LLM fails or returns output that does not match the shape.
+| `pending` | Uploaded, waiting for a generation slot |
+| `generating` | Claude is writing the interview |
+| `ready` | Questions and coding challenge are ready |
+| `failed` | See `error` for why. Retry, or delete and upload again |
 
 ## Page 3: Interview
 
 | Method | Path | Body | Returns |
 | --- | --- | --- | --- |
-| GET | `/candidates/{candidate_id}/interview` | - | `Interview`, or `404` if not generated |
-| POST | `/candidates/{candidate_id}/submission` | multipart `solution_files` (one or more), `process_files` (one or more) | `Submission` |
-| GET | `/candidates/{candidate_id}/submission` | - | `Submission`, or `404` if none |
+| GET | `/candidates/{candidate_id}` | - | `CandidateDetail` |
+| PATCH | `/candidates/{candidate_id}` | `{name}` | `CandidateDetail` |
+| PATCH | `/candidate-questions/{question_id}` | `{prompt}` | `CandidateQuestion` |
+| PATCH | `/candidates/{candidate_id}/coding-challenge` | partial `{prompt, starter_code, tests, solution_code}` | `CodingChallenge` |
 
-- Uploading again replaces the stored submission.
-- The server extracts the text of every file and adds it to the Markdown context file.
+- `CandidateDetail` is the candidate plus `resume_text`, `questions` (in type order), and `coding_challenge`.
+- Generated material is frozen: later job edits never change it. Users can edit any of it by hand.
+- Starter code and tests are set or cleared together (400 otherwise).
 
-## LLM Call #2: Analyze the candidate
+## Not built yet
 
-| Method | Path | Body | Returns |
-| --- | --- | --- | --- |
-| POST | `/candidates/{candidate_id}/analysis/generate` | - | `Analysis` |
-
-- Adds the submission to the existing Markdown context file, calls the LLM, stores the result, and returns it.
-- `400` if the candidate has no interview or no submission.
-- `502` if the LLM fails or returns output that does not match the shape.
-
-## Page 4: Candidate Analysis
-
-| Method | Path | Body | Returns |
-| --- | --- | --- | --- |
-| GET | `/candidates/{candidate_id}/analysis` | - | `Analysis`, or `404` if not generated |
-
-## Candidate status
-
-The server sets `status` on every `Candidate`. The dashboard and lists use it.
-
-| Status | Meaning |
-| --- | --- |
-| `setup` | Candidate created, no interview yet |
-| `interview_generated` | LLM Call #1 finished |
-| `submitted` | Solution and process uploaded |
-| `analyzed` | LLM Call #2 finished |
-
-## Backend changes this contract needs
-
-- Job: add `posting_text` and `existing_questions`.
-- Question types: accept `debugging`, `resume_deep_dive`, `code_review`, `data_modeling`, `testing_strategy`, `motivation`, and `leadership`.
-- Job: add `question_counts`.
-- Candidate: add `interview_style` and a read-only `status`.
-- Coding challenge: make `skeleton_code` optional, for the broad technical prompt.
-- New endpoints: text extraction, interview generate and read, submission upload and read, analysis generate and read.
-- Storage: generated questions go into the existing question tables, assigned to the candidate with their rationale. The analysis is stored whole as JSON.
-- The question, coding challenge, and assignment endpoints stay, but the frontend does not call them.
+- Uploading the candidate's finished work, and the candidate analysis (LLM Call #2, Page 4).
+- Regenerating a candidate who already has an interview.

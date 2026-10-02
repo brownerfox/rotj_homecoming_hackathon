@@ -1,6 +1,6 @@
 import type {
-  Analysis, AuthResponse, Candidate, CandidateInput, ExtractedText, Interview, Job, JobInput,
-  Role, Submission, User,
+  AuthResponse, Candidate, CandidateDetail, CandidateQuestion, CodingChallenge, CodingChallengeUpdate,
+  ExistingQuestionFile, Job, JobInput, Role, User,
 } from "./types";
 import { mockApi } from "./mock-api";
 import { ApiError } from "./api-error";
@@ -58,15 +58,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 const json = (body: unknown) => JSON.stringify(body);
 
-// The interview, submission, and analysis do not exist until they are created.
-// The server answers 404 for those, which the pages treat as "not yet" instead of an error.
-async function orNull<T>(p: Promise<T>): Promise<T | null> {
-  try {
-    return await p;
-  } catch (e) {
-    if (e instanceof ApiError && e.status === 404) return null;
-    throw e;
-  }
+// Multipart body with every file under the field name the server expects ("files").
+function filesForm(files: File[]): FormData {
+  const fd = new FormData();
+  files.forEach((f) => fd.append("files", f));
+  return fd;
 }
 
 const realApi = {
@@ -77,13 +73,6 @@ const realApi = {
   me: (): Promise<User> => mockApi.me(),
   demoLogin: (): Promise<AuthResponse> => mockApi.demoLogin(),
 
-  // Pages 1 and 2: turn an uploaded posting or resume into text.
-  extractText: (file: File) => {
-    const fd = new FormData();
-    fd.append("file", file);
-    return request<ExtractedText>("/files/extract-text", { method: "POST", body: fd });
-  },
-
   // Page 1: Job Setup
   listJobs: () => request<Job[]>("/jobs"),
   getJob: (id: number) => request<Job>(`/jobs/${id}`),
@@ -91,33 +80,31 @@ const realApi = {
   updateJob: (id: number, d: Partial<JobInput>) =>
     request<Job>(`/jobs/${id}`, { method: "PATCH", body: json(d) }),
 
-  // Page 2: Candidate Setup
+  // Page 1: PDFs of questions the team already asks. Optional, and removable one by one.
+  listExistingQuestionFiles: (jobId: number) =>
+    request<ExistingQuestionFile[]>(`/jobs/${jobId}/existing-questions`),
+  uploadExistingQuestionFiles: (jobId: number, files: File[]) =>
+    request<ExistingQuestionFile[]>(`/jobs/${jobId}/existing-questions`, { method: "POST", body: filesForm(files) }),
+  deleteExistingQuestionFile: (jobId: number, fileId: number) =>
+    request<void>(`/jobs/${jobId}/existing-questions/${fileId}`, { method: "DELETE" }),
+
+  // Page 2: upload resumes. One candidate per PDF; the server generates each interview in the
+  // background, so poll the candidate list until every status is "ready" or "failed".
+  uploadResumes: (jobId: number, files: File[]) =>
+    request<Candidate[]>(`/jobs/${jobId}/candidates`, { method: "POST", body: filesForm(files) }),
+  listJobCandidates: (jobId: number) => request<Candidate[]>(`/jobs/${jobId}/candidates`),
   listCandidates: () => request<Candidate[]>("/candidates"),
-  getCandidate: (id: number) => request<Candidate>(`/candidates/${id}`),
-  createCandidate: (jobId: number, d: CandidateInput) =>
-    request<Candidate>(`/jobs/${jobId}/candidates`, { method: "POST", body: json(d) }),
-  updateCandidate: (id: number, d: Partial<CandidateInput>) =>
-    request<Candidate>(`/candidates/${id}`, { method: "PATCH", body: json(d) }),
+  retryCandidate: (id: number) => request<Candidate>(`/candidates/${id}/retry`, { method: "POST" }),
+  deleteCandidate: (id: number) => request<void>(`/candidates/${id}`, { method: "DELETE" }),
 
-  // LLM Call #1 and Page 3
-  generateInterview: (candidateId: number) =>
-    request<Interview>(`/candidates/${candidateId}/interview/generate`, { method: "POST" }),
-  getInterview: (candidateId: number) =>
-    orNull(request<Interview>(`/candidates/${candidateId}/interview`)),
-  createSubmission: (candidateId: number, d: { solutionFiles: File[]; processFiles: File[] }) => {
-    const fd = new FormData();
-    d.solutionFiles.forEach((f) => fd.append("solution_files", f));
-    d.processFiles.forEach((f) => fd.append("process_files", f));
-    return request<Submission>(`/candidates/${candidateId}/submission`, { method: "POST", body: fd });
-  },
-  getSubmission: (candidateId: number) =>
-    orNull(request<Submission>(`/candidates/${candidateId}/submission`)),
-
-  // LLM Call #2 and Page 4
-  generateAnalysis: (candidateId: number) =>
-    request<Analysis>(`/candidates/${candidateId}/analysis/generate`, { method: "POST" }),
-  getAnalysis: (candidateId: number) =>
-    orNull(request<Analysis>(`/candidates/${candidateId}/analysis`)),
+  // Page 3: the candidate's interview, every part of it editable.
+  getCandidate: (id: number) => request<CandidateDetail>(`/candidates/${id}`),
+  updateCandidate: (id: number, d: { name: string }) =>
+    request<CandidateDetail>(`/candidates/${id}`, { method: "PATCH", body: json(d) }),
+  editCandidateQuestion: (questionId: number, prompt: string) =>
+    request<CandidateQuestion>(`/candidate-questions/${questionId}`, { method: "PATCH", body: json({ prompt }) }),
+  editCodingChallenge: (candidateId: number, d: CodingChallengeUpdate) =>
+    request<CodingChallenge>(`/candidates/${candidateId}/coding-challenge`, { method: "PATCH", body: json(d) }),
 };
 
 export type Api = typeof realApi;

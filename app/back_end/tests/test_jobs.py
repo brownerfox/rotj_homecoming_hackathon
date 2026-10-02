@@ -20,7 +20,10 @@ def test_create_read_and_list_job(client):
 
 def test_question_types_are_listed_in_display_order(client):
     types = client.get("/question-types").json()
-    assert [t["value"] for t in types] == ["behavioral", "situational", "technical", "debugging", "system_design"]
+    assert [t["value"] for t in types] == [
+        "debugging", "behavioral", "situational", "technical", "system_design", "resume_deep_dive",
+        "code_review", "data_modeling", "testing_strategy", "motivation", "leadership",
+    ]
     assert all(t["description"] for t in types)
 
 
@@ -37,7 +40,7 @@ def test_patch_replaces_question_counts(client, job):
     new_counts = [{"type": "behavioral", "count": 3}, {"type": "debugging", "count": 1}]
     response = client.patch(f"/jobs/{job['id']}", json={"questions": new_counts})
     assert response.status_code == 200, response.text
-    assert response.json()["questions"] == new_counts
+    assert response.json()["questions"] == [new_counts[1], new_counts[0]]  # returned in type order: debugging first
     assert response.json()["title"] == job["title"]
 
 

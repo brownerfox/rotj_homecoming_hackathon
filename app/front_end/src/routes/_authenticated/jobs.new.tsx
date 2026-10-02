@@ -1,182 +1,185 @@
-// Page 1: Job Setup (Page_WorkFlow.md).
+// Page 1: Job Setup.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
-import { ChevronDown, Minus, Plus } from "lucide-react";
+import { ChevronDown, Minus, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/lib/api";
-import { MAX_TOTAL_QUESTIONS, QUESTION_TYPES } from "@/lib/constants";
-import type { JobInput, QuestionType } from "@/lib/types";
+import { MAX_PDF_MB, MAX_PER_TYPE, QUESTION_TYPES } from "@/lib/constants";
+import type { Job, JobInput, QuestionType } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ErrorState, LoadingRows, PageHeader } from "@/components/app-ui";
 import { Field, FlowFooter, FlowSteps, Section } from "@/components/flow-ui";
-import { cn, toId } from "@/lib/utils";
+import { cn, pdfProblem, toId } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/jobs/new")({
-  // ?job= opens a saved job for editing. ?candidate= is carried along so Page 2 can reopen that candidate.
-  validateSearch: (search: Record<string, unknown>): { job?: number; candidate?: number } => {
+  // ?job= opens a saved job for editing.
+  validateSearch: (search: Record<string, unknown>): { job?: number } => {
     const job = toId(search["job"]);
-    const candidate = toId(search["candidate"]);
-    return { ...(job === undefined ? {} : { job }), ...(candidate === undefined ? {} : { candidate }) };
+    return job === undefined ? {} : { job };
   },
   head: () => ({
     meta: [
       { title: "Job Setup — Fit2Hire" },
-      { name: "description", content: "Enter the public job posting, the key priorities, and the hiring manager's context." },
+      { name: "description", content: "Describe the job, the questions to ask, and what the coding challenge should cover." },
       { property: "og:title", content: "Job Setup — Fit2Hire" },
-      { property: "og:description", content: "Enter the public job posting, the key priorities, and the hiring manager's context." },
+      { property: "og:description", content: "Describe the job, the questions to ask, and what the coding challenge should cover." },
     ],
   }),
   component: JobSetup,
 });
 
-const POSTING_TYPES = [".pdf", ".txt", ".md"];
-const MAX_MB = 10;
-
-// What the hiring manager context box should cover (Page_WorkFlow.md, Page 1).
-const CONTEXT_PROMPTS = [
-  "Current company and team work",
-  "What the new hire will work on",
-  "Desired working style",
-  "Important skills or qualities",
-  "Anything about culture",
-  "Anything not captured by the public post",
+// What the job description should cover, so the questions fit the real work.
+const DESCRIPTION_PROMPTS = [
+  "The public posting: qualifications, responsibilities, preferences",
+  "Current company and team work, and what the new hire will work on",
+  "Desired working style and anything about culture",
 ];
 
-// Coding is always selected, because every interview includes a technical problem.
-const empty: JobInput = { title: "", posting_text: "", question_types: ["coding"], question_counts: {}, existing_questions: "", context: "" };
+interface Form {
+  title: string;
+  description: string;
+  skills: string; // comma-separated
+  existing_questions: string;
+  coding_brief: string;
+  starter_code: boolean;
+  counts: Partial<Record<QuestionType, number>>; // selected types only
+}
+
+const empty: Form = { title: "", description: "", skills: "", existing_questions: "", coding_brief: "", starter_code: true, counts: {} };
+
+const toForm = (job: Job): Form => ({
+  title: job.title,
+  description: job.description,
+  skills: job.skills.join(", "),
+  existing_questions: job.existing_questions ?? "",
+  coding_brief: job.coding_brief ?? "",
+  starter_code: job.starter_code,
+  counts: Object.fromEntries(job.questions.map((q) => [q.type, q.count])),
+});
+
+const toInput = (f: Form): JobInput => ({
+  title: f.title.trim(),
+  description: f.description.trim(),
+  skills: f.skills.split(",").map((s) => s.trim()).filter(Boolean),
+  existing_questions: f.existing_questions.trim() || null,
+  coding_brief: f.coding_brief.trim() || null,
+  starter_code: f.starter_code,
+  questions: QUESTION_TYPES.flatMap((t) => (f.counts[t.value] ? [{ type: t.value, count: f.counts[t.value] ?? 1 }] : [])),
+});
 
 function JobSetup() {
-  const [f, setF] = useState<JobInput>(empty);
-  const [postingFile, setPostingFile] = useState<string | null>(null);
-  const [questionsFile, setQuestionsFile] = useState<string | null>(null);
-  // Which box is being filled from an upload, if any.
-  const [uploading, setUploading] = useState<"posting_text" | "existing_questions" | null>(null);
+  const [f, setF] = useState<Form>(empty);
+  // PDFs chosen on this visit. They upload when the job is saved, because a new job has no id yet.
+  const [newFiles, setNewFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const set = <K extends keyof JobInput>(k: K, v: JobInput[K]) => setF((p) => ({ ...p, [k]: v }));
+  const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }));
 
   // Coming back from Page 2 edits the saved job instead of creating a second one.
-  const { job: jobId, candidate: candidateId } = Route.useSearch();
+  const { job: jobId } = Route.useSearch();
   const existing = useQuery({
     queryKey: ["job", String(jobId)], queryFn: () => api.getJob(jobId ?? 0), enabled: jobId !== undefined,
   });
+  const savedFiles = useQuery({
+    queryKey: ["existing-questions", jobId], queryFn: () => api.listExistingQuestionFiles(jobId ?? 0), enabled: jobId !== undefined,
+  });
+  const removeFile = useMutation({
+    mutationFn: (fileId: number) => api.deleteExistingQuestionFile(jobId ?? 0, fileId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["existing-questions", jobId] }),
+    onError: (e) => toast.error(`The file could not be removed. ${errorMessage(e)}`),
+  });
   useEffect(() => {
-    if (jobId === undefined) { setF(empty); setPostingFile(null); setQuestionsFile(null); return; }
-    if (existing.data) {
-      const { title, posting_text, question_types, question_counts, existing_questions, context } = existing.data;
-      setF({
-        title, posting_text, context,
-        // Every selected type needs a count. A job saved before counts existed gets one each.
-        question_counts: Object.fromEntries(
-          question_types.filter((t) => t !== "coding").map((t) => [t, question_counts?.[t] ?? 1]),
-        ),
-        // A server that has not added this field yet sends nothing for it.
-        existing_questions: existing_questions ?? "",
-        question_types: question_types.includes("coding") ? question_types : [...question_types, "coding"],
-      });
-    }
+    if (jobId === undefined) { setF(empty); setNewFiles([]); return; }
+    if (existing.data) setF(toForm(existing.data));
   }, [jobId, existing.data]);
 
-  // Every generated question: the personalized ones plus the one coding problem.
-  const totalQuestions = 1 + f.question_types.reduce((sum, t) => sum + (t === "coding" ? 0 : f.question_counts[t] ?? 1), 0);
-  const atLimit = totalQuestions >= MAX_TOTAL_QUESTIONS;
+  const personalizedTotal = Object.values(f.counts).reduce((sum, n) => sum + (n ?? 0), 0);
 
   // Ticking a type starts it at one question. Unticking it drops its count.
   function toggleType(t: QuestionType) {
-    const selected = f.question_types.includes(t);
-    if (!selected && atLimit) return;
-    const counts = { ...f.question_counts };
-    if (selected) delete counts[t]; else counts[t] = 1;
-    setF((p) => ({
-      ...p,
-      question_types: selected ? p.question_types.filter((x) => x !== t) : [...p.question_types, t],
-      question_counts: counts,
-    }));
+    const counts = { ...f.counts };
+    if (counts[t]) delete counts[t]; else counts[t] = 1;
+    set("counts", counts);
   }
 
-  // The + and - buttons. A selected type has at least 1. Adding stops once the total reaches the limit.
+  // The + and - buttons: each selected type has 1 to MAX_PER_TYPE questions.
   function changeCount(t: QuestionType, by: number) {
-    if (by > 0 && atLimit) return;
-    set("question_counts", { ...f.question_counts, [t]: Math.max(1, (f.question_counts[t] ?? 1) + by) });
+    set("counts", { ...f.counts, [t]: Math.min(MAX_PER_TYPE, Math.max(1, (f.counts[t] ?? 1) + by)) });
   }
 
-  // Reads an uploaded file and puts its text into the job posting box or the existing questions box.
-  async function fillFromFile(file: File | undefined, field: "posting_text" | "existing_questions") {
-    if (!file) return;
-    const what = field === "posting_text" ? "job posting" : "questions file";
-    const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
-    if (!POSTING_TYPES.includes(ext)) { setError(`The ${what} must be a PDF, TXT, or MD file.`); return; }
-    if (file.size > MAX_MB * 1024 * 1024) { setError(`The ${what} must be ${MAX_MB} MB or smaller.`); return; }
-    setUploading(field); setError(null);
-    try {
-      const res = await api.extractText(file);
-      set(field, res.text);
-      (field === "posting_text" ? setPostingFile : setQuestionsFile)(res.file_name);
-    } catch (e) {
-      setError(`The ${what} could not be read. ${errorMessage(e)}`);
-    } finally { setUploading(null); }
+  function addFiles(list: FileList | null) {
+    const files = Array.from(list ?? []);
+    const problem = pdfProblem(files);
+    if (problem) { setError(problem); return; }
+    setError(null);
+    setNewFiles((prev) => [...prev, ...files]);
   }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!f.title.trim()) { setError("Role is required."); return; }
-    if (!f.posting_text.trim()) { setError("Paste or upload the public job posting."); return; }
-    if (!f.context.trim()) { setError("Add the hiring manager context."); return; }
+    if (!f.description.trim()) { setError("Add the job description."); return; }
     setSaving(true); setError(null);
+    let job: Job | null = null;
     try {
-      const input = { ...f, title: f.title.trim() };
-      const job = jobId === undefined ? await api.createJob(input) : await api.updateJob(jobId, input);
+      const input = toInput(f);
+      job = jobId === undefined ? await api.createJob(input) : await api.updateJob(jobId, input);
+      if (newFiles.length) {
+        await api.uploadExistingQuestionFiles(job.id, newFiles);
+        setNewFiles([]);
+      }
       qc.setQueryData(["job", String(job.id)], job);
       await qc.invalidateQueries({ queryKey: ["jobs"] });
+      await qc.invalidateQueries({ queryKey: ["existing-questions", job.id] });
       toast.success("Job saved");
-      navigate({
-        to: "/jobs/$jobId/candidates/new", params: { jobId: String(job.id) },
-        search: candidateId === undefined ? {} : { candidate: candidateId },
-      });
+      navigate({ to: "/jobs/$jobId/candidates/new", params: { jobId: String(job.id) } });
     } catch (err) {
-      setError(`The job could not be saved. ${errorMessage(err)}`);
+      // If the job saved but a file upload failed, stay on the saved job so trying again doesn't
+      // create a second one.
+      if (job && jobId === undefined) navigate({ to: "/jobs/new", search: { job: job.id }, replace: true });
+      setError(`${job ? "The job was saved, but the question files could not be uploaded." : "The job could not be saved."} ${errorMessage(err)}`);
     } finally { setSaving(false); }
   }
 
   // Shown on the dropdown button, in the fixed option order.
-  const selected = QUESTION_TYPES.filter((t) => f.question_types.includes(t.value));
-  const selectedLabels = selected.map((t) => `${t.label} × ${f.question_counts[t.value] ?? 1}`).join(", ");
-  const personalizedTotal = totalQuestions - 1;
+  const selectedLabels = QUESTION_TYPES.filter((t) => f.counts[t.value])
+    .map((t) => `${t.label} × ${f.counts[t.value]}`).join(", ");
 
   if (jobId !== undefined && existing.isLoading) return <LoadingRows />;
   if (jobId !== undefined && existing.error) return <ErrorState message={errorMessage(existing.error)} />;
 
   return (
     <form onSubmit={submit}>
-      <PageHeader title="Job Setup" description="This information is used as context for the interview and the final analysis." />
+      <PageHeader title="Job Setup" description="Everything here shapes the questions and coding challenge generated for each candidate." />
       <FlowSteps current={1} />
 
-      <Section title="Public job posting" description="Paste or upload the company's original public posting in one piece.">
+      <Section title="The job">
         <Field label="Role" required>
           <Input value={f.title} onChange={(e) => set("title", e.target.value)} placeholder="Backend Software Engineer" />
         </Field>
-        <Field label="Job posting" required>
-          <div className="flex flex-wrap items-center gap-3">
-            <Input type="file" accept={POSTING_TYPES.join(",")} className="max-w-sm" disabled={uploading !== null}
-              onChange={(e) => fillFromFile(e.target.files?.[0], "posting_text")} />
-            {uploading === "posting_text" ? <span className="text-sm text-muted-foreground">Reading file...</span>
-              : postingFile && <span className="text-sm text-muted-foreground">Filled from {postingFile}</span>}
-          </div>
-          <Textarea rows={10} value={f.posting_text}
-            onChange={(e) => { set("posting_text", e.target.value); setPostingFile(null); }} />
+        <Field label="Job description" required>
+          <ul className="list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">
+            {DESCRIPTION_PROMPTS.map((p) => <li key={p}>{p}</li>)}
+          </ul>
+          <Textarea rows={10} value={f.description} onChange={(e) => set("description", e.target.value)} />
+        </Field>
+        <Field label="Skills you are looking for" hint="Separate skills with commas.">
+          <Input value={f.skills} onChange={(e) => set("skills", e.target.value)} placeholder="Python, PostgreSQL, REST APIs" />
         </Field>
       </Section>
 
-      <Section title="Key priorities" description="What matters most for this hire. This decides which types of personalized questions are generated.">
-        <Field label="Question types" required note="Coding is always included">
+      <Section title="Personalized questions"
+        description="Choose the types of questions to ask and how many of each. Every candidate gets the same number of each type, written for their resume.">
+        <Field label="Question types" note="Plus one coding challenge for every candidate">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button type="button" variant="outline" className="w-full max-w-xl justify-between font-normal">
@@ -185,16 +188,10 @@ function JobSetup() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="max-h-96 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto">
-              {atLimit && (
-                <div className="sticky top-0 z-10 border-b bg-popover px-2 py-1.5 text-xs font-medium text-destructive">
-                  The limit is {MAX_TOTAL_QUESTIONS} questions.
-                </div>
-              )}
               {QUESTION_TYPES.map((t) => {
-                const checked = f.question_types.includes(t.value);
-                const count = f.question_counts[t.value] ?? 1;
+                const count = f.counts[t.value];
                 return (
-                  <DropdownMenuCheckboxItem key={t.value} checked={checked} disabled={!checked && atLimit}
+                  <DropdownMenuCheckboxItem key={t.value} checked={count !== undefined}
                     onCheckedChange={() => toggleType(t.value)}
                     onSelect={(e) => e.preventDefault()}>
                     <div className="flex w-full items-center justify-between gap-3">
@@ -202,7 +199,7 @@ function JobSetup() {
                         <div>{t.label}</div>
                         <div className="text-xs text-muted-foreground">{t.description}</div>
                       </div>
-                      {checked && (
+                      {count !== undefined && (
                         // Clicks on the counter must not reach the row, or they would untick the type.
                         <div className="flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
                           <button type="button" aria-label={`Fewer ${t.label} questions`} disabled={count <= 1}
@@ -211,7 +208,7 @@ function JobSetup() {
                             <Minus className="h-3 w-3" />
                           </button>
                           <span className="w-5 text-center text-sm font-medium tabular-nums">{count}</span>
-                          <button type="button" aria-label={`More ${t.label} questions`} disabled={atLimit}
+                          <button type="button" aria-label={`More ${t.label} questions`} disabled={count >= MAX_PER_TYPE}
                             onClick={() => changeCount(t.value, 1)}
                             className="flex h-6 w-6 items-center justify-center rounded border bg-background hover:bg-muted disabled:opacity-40">
                             <Plus className="h-3 w-3" />
@@ -225,43 +222,74 @@ function JobSetup() {
             </DropdownMenuContent>
           </DropdownMenu>
           <p className="text-sm">
-            <span className="font-medium">Total generated questions: {totalQuestions}</span>{" "}
-            <span className="ml-1 text-muted-foreground">({personalizedTotal} personalized, plus the coding problem)</span>
-            {atLimit && <span className="ml-2 font-medium text-destructive">The limit is {MAX_TOTAL_QUESTIONS} questions.</span>}
+            <span className="font-medium">{personalizedTotal} personalized {personalizedTotal === 1 ? "question" : "questions"} per candidate</span>
+            <span className="ml-1 text-muted-foreground">(up to {MAX_PER_TYPE} of each type), plus the coding challenge</span>
           </p>
         </Field>
       </Section>
 
       <Section title="Existing interview questions"
-        description="Questions you already ask every candidate. Type them or upload a file. Generated questions will not repeat them.">
+        description="Optional. Questions you already ask every candidate. Type them, upload PDFs, or both. Generated questions will not repeat them.">
         <Field label="Questions">
-          <div className="flex flex-wrap items-center gap-3">
-            <Input type="file" accept={POSTING_TYPES.join(",")} className="max-w-sm" disabled={uploading !== null}
-              onChange={(e) => fillFromFile(e.target.files?.[0], "existing_questions")} />
-            {uploading === "existing_questions" ? <span className="text-sm text-muted-foreground">Reading file...</span>
-              : questionsFile && <span className="text-sm text-muted-foreground">Filled from {questionsFile}</span>}
-          </div>
-          <Textarea rows={6} value={f.existing_questions}
-            onChange={(e) => { set("existing_questions", e.target.value); setQuestionsFile(null); }} />
+          <Textarea rows={6} value={f.existing_questions} onChange={(e) => set("existing_questions", e.target.value)} />
+        </Field>
+        <Field label="PDFs" hint={`PDF files up to ${MAX_PDF_MB} MB each. They upload when you save.`}>
+          <ExistingFileList
+            saved={savedFiles.data ?? []} pending={newFiles} removing={removeFile.isPending ? removeFile.variables : undefined}
+            onRemoveSaved={(id) => removeFile.mutate(id)}
+            onRemovePending={(i) => setNewFiles((prev) => prev.filter((_, n) => n !== i))} />
+          <Input type="file" multiple accept=".pdf" className="max-w-sm" disabled={saving}
+            // Clearing the value lets the same file be picked again after removing it.
+            onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
         </Field>
       </Section>
 
-      <Section title="Hiring manager context" description="Everything the hiring manager wants the interview and analysis to take into account.">
-        <Field label="Context" required>
-          <ul className="list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">
-            {CONTEXT_PROMPTS.map((p) => <li key={p}>{p}</li>)}
-          </ul>
-          <Textarea rows={10} value={f.context} onChange={(e) => set("context", e.target.value)} />
+      <Section title="Coding challenge" description="Every candidate gets one coding challenge in Python, written for the job and their resume.">
+        <Field label="Hiring manager's notes" hint="What should the challenge be like? Jot down your thoughts. The challenge is based mainly on this.">
+          <Textarea rows={6} value={f.coding_brief} onChange={(e) => set("coding_brief", e.target.value)} />
         </Field>
+        <div className="flex items-start justify-between gap-6 rounded-md border bg-muted/40 p-4">
+          <div>
+            <label htmlFor="starter-code" className="font-medium">Include starter code and tests</label>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Without starter code the candidate starts from a blank file, and there are no tests. Applies to resumes uploaded after you save.
+            </p>
+          </div>
+          <Switch id="starter-code" checked={f.starter_code} onCheckedChange={(v) => set("starter_code", v)} />
+        </div>
       </Section>
 
       {error && <div className="mb-4"><ErrorState message={error} /></div>}
 
       <FlowFooter back={<Button asChild variant="outline"><Link to="/">Back</Link></Button>}>
-        <Button type="submit" size="lg" disabled={saving || uploading !== null}>
-          {saving ? "Saving..." : "Save and continue to Candidate Setup"}
+        <Button type="submit" size="lg" disabled={saving}>
+          {saving ? "Saving..." : "Save and continue to Candidates"}
         </Button>
       </FlowFooter>
     </form>
+  );
+}
+
+function ExistingFileList({ saved, pending, removing, onRemoveSaved, onRemovePending }: {
+  saved: { id: number; file_name: string }[];
+  pending: File[];
+  removing: number | undefined;
+  onRemoveSaved: (id: number) => void;
+  onRemovePending: (index: number) => void;
+}) {
+  if (!saved.length && !pending.length) return null;
+  const row = (key: string, name: string, note: string, onRemove: () => void, busy = false) => (
+    <li key={key} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+      <span className="truncate">{name} <span className="text-muted-foreground">{note}</span></span>
+      <Button type="button" variant="ghost" size="sm" aria-label={`Remove ${name}`} disabled={busy} onClick={onRemove}>
+        <X className="h-4 w-4" />
+      </Button>
+    </li>
+  );
+  return (
+    <ul className="max-w-xl divide-y rounded-md border">
+      {saved.map((s) => row(`saved-${s.id}`, s.file_name, "", () => onRemoveSaved(s.id), removing === s.id))}
+      {pending.map((p, i) => row(`new-${i}-${p.name}`, p.name, "(uploads when you save)", () => onRemovePending(i)))}
+    </ul>
   );
 }

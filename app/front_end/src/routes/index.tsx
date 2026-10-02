@@ -15,9 +15,9 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Fit2Hire — Personalized Technical Exams" },
-      { name: "description", content: "Turn a job posting, the hiring manager's priorities, and a resume into a personalized interview, then see how the candidate worked through it." },
+      { name: "description", content: "Turn a job description and a batch of resumes into a personalized interview and coding challenge for every candidate." },
       { property: "og:title", content: "Fit2Hire — Personalized Technical Exams" },
-      { property: "og:description", content: "Personalized interviews and evidence-based candidate analysis for recruiters and hiring managers." },
+      { property: "og:description", content: "Personalized interviews and coding challenges for recruiters and hiring managers." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -25,12 +25,11 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-// The core pipeline from Page_WorkFlow.md, one card per page.
+// The core pipeline, one card per page.
 const STEPS: { lines: [string, string]; text: string }[] = [
-  { lines: ["Set up", "the job"], text: "Add the public posting, the key priorities, and the hiring manager's context." },
-  { lines: ["Add the", "candidate"], text: "Upload a resume and choose the technical interview style." },
-  { lines: ["Run the", "interview"], text: "Get personalized questions and a technical problem. The candidate works outside this tool, then you upload their solution and process notes." },
-  { lines: ["Review the", "analysis"], text: "See evidence on technical work, problem solving, role fit, collaboration, and what to follow up on." },
+  { lines: ["Set up", "the job"], text: "Describe the role, pick the question types and how many of each, and note what the coding challenge should cover." },
+  { lines: ["Upload", "resumes"], text: "Add a whole batch at once. Every candidate gets their own interview, generated in the background." },
+  { lines: ["Run the", "interview"], text: "Use the personalized questions and coding challenge as they are, or edit any part first. The candidate works outside this tool." },
 ];
 
 function Home() {
@@ -68,15 +67,15 @@ function PublicHome() {
         Interviews built around the real job and the real candidate.
       </h1>
       <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
-        Give us the job posting, what the hiring manager cares about, and a resume. We write a personalized
-        interview, then analyze how the candidate worked through it.
+        Give us the job, what the hiring manager cares about, and a stack of resumes. We write a personalized
+        interview and coding challenge for every candidate.
       </p>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Button asChild size="lg"><Link to="/auth">Get started</Link></Button>
         <DemoSignInButton size="lg" />
       </div>
       {/* items-start lets only the hovered card grow. min-h reserves room so the page does not jump. */}
-      <ol className="mt-16 grid min-h-80 grid-cols-2 items-start gap-4 md:grid-cols-4">
+      <ol className="mt-16 grid min-h-80 grid-cols-1 items-start gap-4 md:grid-cols-3">
         {STEPS.map((step, i) => (
           <li key={step.text}
             className="group rounded-xl border bg-card px-6 py-8 transition-all duration-200 hover:-translate-y-1 hover:border-primary hover:bg-accent hover:shadow-md">
@@ -95,8 +94,7 @@ function PublicHome() {
   );
 }
 
-// After signing in: start a new job, or return to a candidate. The candidate works outside
-// the app, so this list is how a recruiter gets back to upload their work.
+// After signing in: start a new job, or return to a candidate's interview.
 function SignedInHome() {
   const candidates = useQuery({ queryKey: ["candidates"], queryFn: api.listCandidates });
   const jobs = useQuery({ queryKey: ["jobs"], queryFn: api.listJobs });
@@ -113,11 +111,11 @@ function SignedInHome() {
         <Button asChild size="lg"><Link to="/jobs/new">Start a new job</Link></Button>
       </div>
 
-      <h2 className="mb-3 mt-8 text-lg font-semibold">Candidates in progress</h2>
+      <h2 className="mb-3 mt-8 text-lg font-semibold">Candidates</h2>
       {candidates.isLoading || jobs.isLoading ? <LoadingRows />
         : error ? <ErrorState message={errorMessage(error)} />
         : !candidates.data?.length ? (
-          <EmptyState title="No candidates yet" description="Start a new job to set up your first candidate." />
+          <EmptyState title="No candidates yet" description="Start a new job, then upload resumes to add candidates." />
         ) : (
           <ul className="divide-y rounded-md border bg-card">
             {candidates.data.map((c) => {
@@ -125,11 +123,11 @@ function SignedInHome() {
               return (
                 <li key={c.id}>
                   <Link
-                    to={status.page === 4 ? "/candidates/$candidateId/analysis" : "/candidates/$candidateId/interview"}
+                    to="/candidates/$candidateId/interview"
                     params={{ candidateId: String(c.id) }}
                     className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-muted/50">
                     <div>
-                      <div className="font-medium">{c.name}</div>
+                      <div className="font-medium">{c.name ?? c.resume_file_name}</div>
                       <div className="text-sm text-muted-foreground">{titles.get(c.job_id) ?? "Unknown position"}</div>
                     </div>
                     <div className="text-right text-sm">

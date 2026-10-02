@@ -82,6 +82,7 @@ def seed(db: Session) -> None:
             "production issues, and reviewing teammates' code."
         ),
         skills=["Python", "REST API design", "SQL", "Debugging", "Communication"],
+        existing_questions="Walk me through a project you're proud of.\nHow do you decide when code is ready to ship?",
         coding_brief=(
             "We ingest millions of calendar events a day from customer systems, and the data is messy. "
             "Something about cleaning or merging time ranges would be close to the real work."

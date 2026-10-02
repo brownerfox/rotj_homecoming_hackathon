@@ -1,14 +1,14 @@
-// Shared layout pieces for Pages 1 to 4 (Page_WorkFlow.md).
+// Shared layout pieces for Pages 1 to 3.
 import type { ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
-// Pages 1 to 4, in order. Page 0 is sign-in, so it is not a step.
-// Do not add, remove, or reorder without updating Page_WorkFlow.md.
-const STEPS = ["Job Setup", "Candidate Setup", "Interview", "Candidate Analysis"] as const;
+// Pages 1 to 3, in order. Page 0 is sign-in, so it is not a step. The candidate analysis page
+// is not built yet (see API_CONTRACT.md).
+const STEPS = ["Job Setup", "Candidates", "Interview"] as const;
 
-export function FlowSteps({ current }: { current: 1 | 2 | 3 | 4 }) {
+export function FlowSteps({ current }: { current: 1 | 2 | 3 }) {
   return (
     <ol className="mb-8 flex flex-wrap overflow-x-auto rounded-md border bg-card">
       {STEPS.map((label, i) => {
@@ -54,7 +54,7 @@ export function Field({ label, note, hint, required, children }: { label: string
   );
 }
 
-// Bottom row for Pages 1 to 4: Back on the left, the page's main action on the right.
+// Bottom row for Pages 1 to 3: Back on the left, the page's main action on the right.
 export function FlowFooter({ back, children }: { back: ReactNode; children?: ReactNode }) {
   return (
     <div className="mt-6 flex flex-wrap items-center justify-between gap-4">

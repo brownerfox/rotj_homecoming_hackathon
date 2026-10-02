@@ -15,7 +15,6 @@ class QuestionType(StrEnum):
     BEHAVIORAL = "behavioral"
     SITUATIONAL = "situational"
     TECHNICAL = "technical"
-    DEBUGGING = "debugging"
     SYSTEM_DESIGN = "system_design"
     RESUME_DEEP_DIVE = "resume_deep_dive"
     CODE_REVIEW = "code_review"
@@ -27,11 +26,10 @@ class QuestionType(StrEnum):
 
 # Shown in the UI and given to Claude, so it knows what each type means.
 QUESTION_TYPE_DESCRIPTIONS: dict[QuestionType, str] = {
-    QuestionType.DEBUGGING: "Finding and fixing a problem in existing code.",
+    QuestionType.DEBUGGING: "Talk through finding the cause of a bug or production problem. May include a short code snippet.",
     QuestionType.BEHAVIORAL: "Past experience: 'Tell me about a time you...'",
     QuestionType.SITUATIONAL: "A hypothetical scenario: 'What would you do if...'",
     QuestionType.TECHNICAL: "Conceptual knowledge, answered out loud.",
-    QuestionType.DEBUGGING: "Talk through finding the cause of a bug or production problem. May include a short code snippet.",
     QuestionType.SYSTEM_DESIGN: "Open-ended architecture and trade-off discussion.",
     QuestionType.RESUME_DEEP_DIVE: "Probing specific projects and claims on the resume.",
     QuestionType.CODE_REVIEW: "What the candidate looks for and says when reviewing code.",
@@ -83,6 +81,8 @@ class Job(Timestamps, Base):
     description: Mapped[str] = mapped_column(Text)
     # Skills the hiring team is looking for, as free text, e.g. ["Python", "SQL"].
     skills: Mapped[list[str]] = mapped_column(JSON, default=list)
+    # Questions the team already asks, typed in. Uploaded PDFs of them are ExistingQuestionFile rows.
+    existing_questions: Mapped[str | None] = mapped_column(Text)
     # The hiring manager's notes on what the coding challenge should be like.
     coding_brief: Mapped[str | None] = mapped_column(Text)
     # Whether coding challenges come with starter code and tests (no starter code means no tests).

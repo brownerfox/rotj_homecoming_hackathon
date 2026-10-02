@@ -1,196 +1,151 @@
-// Page 2: Candidate Setup (Page_WorkFlow.md). Saving this page runs LLM Call #1.
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type FormEvent } from "react";
+// Page 2: Candidates. Upload resumes in bulk. The server makes one candidate per resume and
+// generates each one's questions and coding challenge in the background.
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { X } from "lucide-react";
+import { toast } from "sonner";
 import { api, errorMessage } from "@/lib/api";
-import { nameFromResume } from "@/lib/candidate-name";
-import { INTERVIEW_STYLES } from "@/lib/constants";
-import type { ExtractedText, InterviewStyle } from "@/lib/types";
+import { CANDIDATE_STATUS, MAX_PDF_MB } from "@/lib/constants";
+import type { Candidate } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ErrorState, LoadingRows, PageHeader } from "@/components/app-ui";
+import { EmptyState, ErrorState, LoadingRows, PageHeader } from "@/components/app-ui";
 import { Field, FlowFooter, FlowSteps, Section } from "@/components/flow-ui";
-import { cn, toId } from "@/lib/utils";
+import { cn, pdfProblem } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/jobs/$jobId/candidates/new")({
-  // ?candidate= opens a saved candidate for editing, when coming back from Page 3.
-  validateSearch: (search: Record<string, unknown>): { candidate?: number } => {
-    const candidate = toId(search["candidate"]);
-    return candidate === undefined ? {} : { candidate };
-  },
   head: () => ({
     meta: [
-      { title: "Candidate Setup — Fit2Hire" },
-      { name: "description", content: "Add the candidate's resume and choose the technical interview style." },
-      { property: "og:title", content: "Candidate Setup — Fit2Hire" },
-      { property: "og:description", content: "Add the candidate's resume and choose the technical interview style." },
+      { title: "Candidates — Fit2Hire" },
+      { name: "description", content: "Upload resumes. Each candidate gets personalized questions and a coding challenge." },
+      { property: "og:title", content: "Candidates — Fit2Hire" },
+      { property: "og:description", content: "Upload resumes. Each candidate gets personalized questions and a coding challenge." },
     ],
   }),
-  component: CandidateSetup,
+  component: CandidatesPage,
 });
 
-const RESUME_TYPES = [".pdf", ".txt", ".md"];
-const MAX_MB = 10;
-
-// What the candidate must document (Page_WorkFlow.md, Page 2).
-const DOCUMENTATION_ITEMS = ["Implementation plan", "Thought process", "Final approach"];
-
-function CandidateSetup() {
+function CandidatesPage() {
   const { jobId } = Route.useParams();
-  const job = useQuery({ queryKey: ["job", jobId], queryFn: () => api.getJob(Number(jobId)) });
-  // Read from the resume. The user only types it if it could not be read.
-  const [name, setName] = useState("");
-  const [nameUnreadable, setNameUnreadable] = useState(false);
-  const [resume, setResume] = useState<ExtractedText | null>(null);
-  const [style, setStyle] = useState<InterviewStyle | null>(null);
-  // Set once the candidate is saved, so a retry after a failed generation reuses it.
-  const [candidateId, setCandidateId] = useState<number | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [phase, setPhase] = useState<"idle" | "saving" | "generating">("idle");
-  const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
+  const id = Number(jobId);
   const qc = useQueryClient();
-  const busy = phase !== "idle";
+  const [files, setFiles] = useState<File[]>([]);
+  // Changing the key empties the file picker after an upload.
+  const [pickerKey, setPickerKey] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  // Coming back from Page 3 edits the saved candidate instead of adding a second one.
-  const { candidate: editId } = Route.useSearch();
-  const existing = useQuery({
-    queryKey: ["candidate", editId], queryFn: () => api.getCandidate(editId ?? 0), enabled: editId !== undefined,
+  const job = useQuery({ queryKey: ["job", jobId], queryFn: () => api.getJob(id) });
+  const candidates = useQuery({
+    queryKey: ["job-candidates", id],
+    queryFn: () => api.listJobCandidates(id),
+    // Check every 2 seconds while the server is still generating any of them.
+    refetchInterval: (q) => (q.state.data?.some((c) => CANDIDATE_STATUS[c.status].busy) ? 2000 : false),
   });
-  useEffect(() => {
-    if (!existing.data) return;
-    setName(existing.data.name);
-    setStyle(existing.data.interview_style);
-    // An empty file name marks the resume that is already saved.
-    setResume({ file_name: "", text: existing.data.resume_text });
-    setCandidateId(existing.data.id);
-  }, [existing.data]);
-  const hasInterview = existing.data !== undefined && existing.data.status !== "setup";
+  const refresh = () => Promise.all([
+    qc.invalidateQueries({ queryKey: ["job-candidates", id] }),
+    qc.invalidateQueries({ queryKey: ["candidates"] }),
+  ]);
 
-  async function uploadResume(file: File | undefined) {
-    if (!file) return;
-    const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
-    if (!RESUME_TYPES.includes(ext)) { setError("The resume must be a PDF, TXT, or MD file."); return; }
-    if (file.size > MAX_MB * 1024 * 1024) { setError(`The resume must be ${MAX_MB} MB or smaller.`); return; }
-    setUploading(true); setError(null);
-    try {
-      const extracted = await api.extractText(file);
-      const found = nameFromResume(extracted.text, extracted.file_name);
-      setResume(extracted);
-      setName(found ?? "");
-      setNameUnreadable(found === null);
-    } catch (e) {
-      setResume(null);
-      setError(`The resume could not be read. ${errorMessage(e)}`);
-    } finally { setUploading(false); }
+  const upload = useMutation({
+    mutationFn: () => api.uploadResumes(id, files),
+    onSuccess: async (created) => {
+      setFiles([]);
+      setPickerKey((k) => k + 1);
+      await refresh();
+      toast.success(`${created.length} ${created.length === 1 ? "resume" : "resumes"} uploaded. Generating interviews...`);
+    },
+    onError: (e) => setError(`The resumes could not be uploaded. ${errorMessage(e)}`),
+  });
+  const retry = useMutation({
+    mutationFn: (candidateId: number) => api.retryCandidate(candidateId),
+    onSuccess: refresh,
+    onError: (e) => toast.error(`Retry failed. ${errorMessage(e)}`),
+  });
+  const remove = useMutation({
+    mutationFn: (candidateId: number) => api.deleteCandidate(candidateId),
+    onSuccess: refresh,
+    onError: (e) => toast.error(`The candidate could not be removed. ${errorMessage(e)}`),
+  });
+
+  function choose(list: FileList | null) {
+    const chosen = Array.from(list ?? []);
+    const problem = pdfProblem(chosen);
+    setError(problem);
+    setFiles(problem ? [] : chosen);
   }
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    if (!resume) { setError("Upload the candidate's resume."); return; }
-    if (!name.trim()) { setError("Enter the candidate's name. It could not be read from the resume."); return; }
-    if (!style) { setError("Choose a technical interview style."); return; }
-    setError(null);
-    let step = "The candidate could not be saved.";
-    try {
-      setPhase("saving");
-      const input = { name: name.trim(), resume_text: resume.text, interview_style: style };
-      const candidate = candidateId === null
-        ? await api.createCandidate(Number(jobId), input)
-        : await api.updateCandidate(candidateId, input);
-      setCandidateId(candidate.id);
-
-      // LLM Call #1. The server combines Page 1 and Page 2 into the Markdown context file.
-      step = "The interview could not be generated.";
-      setPhase("generating");
-      await api.generateInterview(candidate.id);
-      await qc.invalidateQueries({ queryKey: ["candidates"] });
-      navigate({ to: "/candidates/$candidateId/interview", params: { candidateId: String(candidate.id) } });
-    } catch (err) {
-      setError(`${step} ${errorMessage(err)}`);
-    } finally { setPhase("idle"); }
-  }
-
-  if (job.isLoading || (editId !== undefined && existing.isLoading)) return <LoadingRows />;
+  if (job.isLoading) return <LoadingRows />;
   if (job.error || !job.data) return <ErrorState message={errorMessage(job.error)} />;
-  if (existing.error) return <ErrorState message={errorMessage(existing.error)} />;
 
   return (
-    <form onSubmit={submit}>
-      <PageHeader title="Candidate Setup" description={`Add a candidate for ${job.data.title} and choose how they will be tested.`} />
+    <div>
+      <PageHeader title="Candidates" description={`Upload resumes for ${job.data.title}. Each one becomes a candidate with their own interview.`} />
       <FlowSteps current={2} />
 
-      <Section title="Candidate">
-        <Field label="Resume" required hint="Upload a PDF, TXT, or MD file, up to 10 MB.">
+      <Section title="Upload resumes"
+        description="Questions and coding challenges are generated in the background using the job's settings as they are now. Editing the job later won't change candidates who already have them.">
+        <Field label="Resumes" hint={`Select as many PDFs as you like, up to ${MAX_PDF_MB} MB each.`}>
           <div className="flex flex-wrap items-center gap-3">
-            <Input type="file" accept={RESUME_TYPES.join(",")} className="max-w-sm" disabled={uploading || busy}
-              onChange={(e) => uploadResume(e.target.files?.[0])} />
-            {uploading ? <span className="text-sm text-muted-foreground">Reading file...</span>
-              : resume && (
-                <span className="text-sm text-muted-foreground">
-                  {resume.file_name ? `Read ${resume.file_name}` : "Resume already on file. Choose a file to replace it."}
-                </span>
-              )}
+            <Input key={pickerKey} type="file" multiple accept=".pdf" className="max-w-sm" disabled={upload.isPending}
+              onChange={(e) => choose(e.target.files)} />
+            <Button type="button" disabled={!files.length || upload.isPending} onClick={() => { setError(null); upload.mutate(); }}>
+              {upload.isPending ? "Uploading..." : files.length ? `Upload ${files.length} and generate` : "Upload and generate"}
+            </Button>
           </div>
         </Field>
-        {resume && !nameUnreadable && (
-          <div>
-            <div className="text-base font-medium">Candidate name</div>
-            <div className="mt-1 text-sm">{name} <span className="text-muted-foreground">(read from the resume)</span></div>
-          </div>
-        )}
-        {nameUnreadable && (
-          <Field label="Candidate name" required hint="The name could not be read from this resume, so please enter it.">
-            <Input value={name} onChange={(e) => setName(e.target.value)} disabled={busy} />
-          </Field>
-        )}
+        {error && <ErrorState message={error} />}
       </Section>
 
-      <Section title="Technical interview style" description="Pick one. Both options include ready-to-run test cases.">
-        <RadioGroup value={style ?? ""} onValueChange={(v) => setStyle(v as InterviewStyle)} disabled={busy} className="gap-3">
-          {INTERVIEW_STYLES.map((s) => (
-            <label key={s.value} htmlFor={`style-${s.value}`}
-              className={cn("flex cursor-pointer items-start gap-3 rounded-md border p-4", style === s.value && "border-primary bg-accent")}>
-              <RadioGroupItem id={`style-${s.value}`} value={s.value} className="mt-0.5" />
-              <div>
-                <div className="text-sm font-medium">{s.label}</div>
-                <p className="text-sm text-muted-foreground">{s.description}</p>
-              </div>
-            </label>
-          ))}
-        </RadioGroup>
+      <Section title="Candidates for this job">
+        {candidates.isLoading ? <LoadingRows />
+          : candidates.error ? <ErrorState message={errorMessage(candidates.error)} />
+          : !candidates.data?.length ? (
+            <EmptyState title="No candidates yet" description="Upload resumes above to add candidates." />
+          ) : (
+            <ul className="divide-y rounded-md border">
+              {candidates.data.map((c) => (
+                <CandidateRow key={c.id} candidate={c}
+                  onRetry={() => retry.mutate(c.id)} retrying={retry.isPending && retry.variables === c.id}
+                  onRemove={() => { if (window.confirm(`Remove ${c.name ?? c.resume_file_name}?`)) remove.mutate(c.id); }} />
+              ))}
+            </ul>
+          )}
       </Section>
-
-      <Section title="Candidate documentation"
-        description="The interview requires the candidate to document their work, using the method of their choice. The documentation must cover:">
-        <ul className="list-disc space-y-1 pl-5 text-sm">
-          {DOCUMENTATION_ITEMS.map((d) => <li key={d}>{d}</li>)}
-        </ul>
-      </Section>
-
-      {error && <div className="mb-4"><ErrorState message={error} /></div>}
 
       <FlowFooter back={
-        <Button asChild variant="outline">
-          <Link to="/jobs/new" search={editId === undefined ? { job: Number(jobId) } : { job: Number(jobId), candidate: editId }}>Back</Link>
-        </Button>}>
-        {phase === "generating" && (
-          <span className="text-sm text-muted-foreground">Writing the interview. This can take up to 90 seconds.</span>
+        <Button asChild variant="outline"><Link to="/jobs/new" search={{ job: id }}>Back</Link></Button>
+      } />
+    </div>
+  );
+}
+
+function CandidateRow({ candidate: c, onRetry, retrying, onRemove }: {
+  candidate: Candidate; onRetry: () => void; retrying: boolean; onRemove: () => void;
+}) {
+  const status = CANDIDATE_STATUS[c.status];
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <div className="min-w-0">
+        <div className="font-medium">{c.name ?? c.resume_file_name}</div>
+        {c.name && <div className="text-xs text-muted-foreground">{c.resume_file_name}</div>}
+        {c.error && <div className="mt-1 text-sm text-destructive">{c.error}</div>}
+      </div>
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className={cn(status.busy && "animate-pulse", c.status === "failed" && "border-destructive text-destructive")}>
+          {status.label}
+        </Badge>
+        {c.status === "ready" && (
+          <Button asChild size="sm"><Link to="/candidates/$candidateId/interview" params={{ candidateId: String(c.id) }}>Open interview</Link></Button>
         )}
-        {hasInterview && phase === "idle" && (
-          <>
-            <span className="text-sm text-muted-foreground">Regenerating replaces the current interview.</span>
-            <Button asChild variant="outline" size="lg">
-              <Link to="/candidates/$candidateId/interview" params={{ candidateId: String(editId) }}>Continue to interview</Link>
-            </Button>
-          </>
+        {c.status === "failed" && (
+          <Button type="button" size="sm" variant="outline" disabled={retrying} onClick={onRetry}>{retrying ? "Retrying..." : "Retry"}</Button>
         )}
-        <Button type="submit" size="lg" disabled={busy || uploading}>
-          {phase === "saving" ? "Saving..." : phase === "generating" ? "Generating interview..."
-            : hasInterview ? "Regenerate interview" : "Generate interview"}
+        <Button type="button" variant="ghost" size="sm" aria-label={`Remove ${c.name ?? c.resume_file_name}`} onClick={onRemove}>
+          <X className="h-4 w-4" />
         </Button>
-      </FlowFooter>
-    </form>
+      </div>
+    </li>
   );
 }
