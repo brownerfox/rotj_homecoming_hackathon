@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite:///{BACKEND_DIR / 'calibrate.db'}"
     # Browser origins allowed to call the API: the Lovable dev server (8080) and Vite's default (5173).
     cors_origins: list[str] = ["http://localhost:8080", "http://localhost:5173"]
+    # Also allowed: the frontend opened on this machine under any other local address or port, such
+    # as http://127.0.0.1:8080 or the "Network" address Vite prints (a private 10.x / 192.168.x /
+    # 172.16-31.x IP). The API itself still only listens on this machine.
+    cors_origin_regex: str = (
+        r"http://(localhost|127\.0\.0\.1|10(\.\d{1,3}){3}|192\.168(\.\d{1,3}){2}"
+        r"|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2})(:\d+)?"
+    )
 
     # SecretStr keeps the key out of logs and error messages.
     anthropic_api_key: SecretStr | None = None
